@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { convertGaroonToGoogleEvent, getRecurrenceKey } = require('../lib/eventConverter');
+const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('../lib/eventConverter');
 const { findGoogleEventsToDelete } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
@@ -76,6 +76,7 @@ test('finds Google events whose Garoon events were deleted', () => {
     { id: 'google-1', iCalUID: 'still-exists' },
     { id: 'google-2', iCalUID: 'deleted-in-garoon', description: '▼参加者<br>山田太郎' },
     { id: 'google-3', iCalUID: 'already-deleted', deleted: true },
+    { id: 'google-5', iCalUID: 'already-cancelled', status: 'cancelled', description: '▼参加者<br>山田太郎' },
     { id: 'google-4', iCalUID: 'unrelated-google-event', description: '個人の予定' },
   ];
 
@@ -158,7 +159,7 @@ test('converts a weekly Garoon series to a Google RRULE', () => {
     },
   }));
   assert.deepEqual(googleEvent.recurrence, [
-    'RRULE:FREQ=WEEKLY;BYDAY=MON;UNTIL=20270331T235959Z',
+    'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20270331T235959Z',
     'EXDATE;TZID=Asia/Tokyo:20260720T000000',
   ]);
 });
@@ -181,7 +182,7 @@ test('converts a three-week all-day series to a Google RRULE', () => {
   });
 
   assert.deepEqual(googleEvent.recurrence, [
-    'RRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=MON;UNTIL=20261231',
+    'RRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=MO;UNTIL=20261231',
     'EXDATE;VALUE=DATE:20261005',
   ]);
 });
@@ -243,4 +244,61 @@ test('converts weekdays to Monday-through-Friday recurrence', () => {
   assert.deepEqual(googleEvent.recurrence, [
     'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261007',
   ]);
+});
+
+test('normalizes full weekday names before creating a Google RRULE', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'weekday-name-occurrence',
+    repeatId: 'weekday-name-series',
+    subject: '定例会',
+    start: { dateTime: '2026-09-14T10:30:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-09-14T11:30:00+09:00', timeZone: 'Asia/Tokyo' },
+    repeatInfo: {
+      type: 'EVERY_WEEK',
+      period: { end: '2027-03-31' },
+      dayOfWeek: 'Monday',
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.equal(googleEvent.recurrence[0], 'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20270331T235959Z');
+});
+
+test('shortens an oversized recurring UID without changing its identity', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'long-uid-occurrence',
+    repeatId: 'long-uid-series',
+    subject: '長い予定',
+    start: { date: '2026-09-14' },
+    end: { date: '2026-09-15' },
+    repeatInfo: {
+      type: 'EVERY_WEEK',
+      isAllDay: true,
+      dayOfWeek: 'MON',
+      notes: 'x'.repeat(2000),
+    },
+    attendees: [],
+    notes: 'x'.repeat(2000),
+  });
+
+  assert.match(googleEvent.iCalUID, /^garoon-[a-f0-9]{64}$/);
+  assert.ok(googleEvent.iCalUID.length <= 1024);
+});
+
+test('uses a short stable UID for recurring events and exposes the legacy UID for migration', () => {
+  const garoonEvent = {
+    id: 'occurrence-789',
+    repeatId: 'series-789',
+    subject: '移行対象の予定',
+    start: { date: '2026-09-14' },
+    end: { date: '2026-09-15' },
+    repeatInfo: { type: 'EVERY_WEEK', dayOfWeek: 'MON' },
+    attendees: [],
+    notes: '',
+  };
+
+  assert.match(getRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
+  assert.match(getLegacyRecurrenceKey(garoonEvent), /^garoon-[A-Za-z0-9_-]+$/);
+  assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
 });

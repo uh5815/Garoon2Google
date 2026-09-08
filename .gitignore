@@ -1,5 +1,6 @@
 node_modules/
 combined.log
+logs/
 token.json
 config.json
 lib/credentials.json

@@ -157,7 +157,7 @@ Windowsのエクスプローラーから実行する場合は `execute.bat` を�
 - `Error:`: 処理全体を継続できないエラー
 - `Failed to add/update event in Google Calendar:`: 個別予定の処理に失敗。ほかの予定の処理は継続する場合があります
 
-ログはコンソールに表示されます。`combined.log` が作成される環境では、このファイルにもログが保存されます。
+ログはコンソールに表示され、プロジェクト内の `logs` フォルダーに `combined-YYYY-MM-DD.log` という日付別のJSONファイルとして保存されます。7日より古いログは、`main.js` 実行時に削除されます。
 
 ## トラブルシューティング
 
