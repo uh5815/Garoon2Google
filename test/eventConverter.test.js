@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { convertGaroonToGoogleEvent } = require('../lib/eventConverter');
+const { findGoogleEventsToDelete } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
   const garoonEvent = {
@@ -38,4 +39,16 @@ test('uses date fields for an all-day Garoon event', () => {
   assert.deepEqual(googleEvent.start, { date: '2026-09-08' });
   assert.deepEqual(googleEvent.end, { date: '2026-09-09' });
   assert.equal(googleEvent.iCalUID, 'all-day-123');
+});
+
+test('finds Google events whose Garoon events were deleted', () => {
+  const garoonEvents = [{ id: 'still-exists' }];
+  const googleEvents = [
+    { id: 'google-1', iCalUID: 'still-exists' },
+    { id: 'google-2', iCalUID: 'deleted-in-garoon', description: '▼参加者<br>山田太郎' },
+    { id: 'google-3', iCalUID: 'already-deleted', deleted: true },
+    { id: 'google-4', iCalUID: 'unrelated-google-event', description: '個人の予定' },
+  ];
+
+  assert.deepEqual(findGoogleEventsToDelete(garoonEvents, googleEvents), [googleEvents[1]]);
 });

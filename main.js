@@ -1,6 +1,6 @@
 const { loadConfig } = require('./lib/config');
 const { getGaroonEvents } = require('./lib/garoon');
-const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, updateEventInGoogleCalendar } = require('./lib/googleCalendar');
+const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, updateEventInGoogleCalendar, deleteEventFromGoogleCalendar } = require('./lib/googleCalendar');
 const { convertGaroonToGoogleEvent } = require('./lib/eventConverter');
 const fs = require('fs').promises;
 
@@ -29,6 +29,27 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
   }
 }
 
+function findGoogleEventsToDelete(garoonEvents, googleEvents) {
+  const garoonEventIds = new Set(garoonEvents.map(event => event.id));
+  return googleEvents.filter(event => (
+    !event.deleted &&
+    event.description?.startsWith('▼参加者<br>') &&
+    !garoonEventIds.has(event.iCalUID)
+  ));
+}
+
+async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
+  const eventsToDelete = findGoogleEventsToDelete(garoonEvents, googleEvents);
+
+  for (const googleEvent of eventsToDelete) {
+    try {
+      await deleteEventFromGoogleCalendar(googleAuth, googleEvent.id, calendarId);
+    } catch (deleteError) {
+      console.error(`Failed to delete event from Google Calendar: ${deleteError.message}`);
+    }
+  }
+}
+
 async function main() {
   try {
     const config = await loadConfig();
@@ -47,6 +68,7 @@ async function main() {
     console.log('Google Calendar events fetched successfully');
 
     await synchronizeEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
+    await deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
   } catch (error) {
     console.error('Error:', error.message);
   }
@@ -56,4 +78,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { loadGoogleCredentials, synchronizeEvents, main };
+module.exports = { loadGoogleCredentials, synchronizeEvents, findGoogleEventsToDelete, deleteRemovedEvents, main };
