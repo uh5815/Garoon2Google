@@ -1,6 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('../lib/eventConverter');
+const {
+  convertGaroonToGoogleEvent,
+  getRecurrenceKey,
+  getLegacyRecurrenceKey,
+  getHistoricalRecurrenceKey,
+} = require('../lib/eventConverter');
 const { findGoogleEventsToDelete, hasEventChanges } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
@@ -303,6 +308,27 @@ test('uses a short stable UID for recurring events and exposes the legacy UID fo
   assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
 });
 
+test('uses repeatId as recurring identity while retaining previous UID lookup keys', () => {
+  const garoonEvent = {
+    id: 'occurrence-790',
+    repeatId: 'series-790',
+    subject: '変更される予定',
+    start: { date: '2026-09-14' },
+    end: { date: '2026-09-15' },
+    repeatInfo: { type: 'EVERY_WEEK', dayOfWeek: 'MON' },
+    attendees: [],
+    notes: '',
+  };
+
+  assert.equal(getRecurrenceKey(garoonEvent), getRecurrenceKey({
+    ...garoonEvent,
+    subject: '件名変更後',
+    notes: 'メモ変更後',
+  }));
+  assert.notEqual(getHistoricalRecurrenceKey(garoonEvent), getRecurrenceKey(garoonEvent));
+  assert.match(getHistoricalRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
+});
+
 test('detects whether a synchronized event actually changed', () => {
   const synchronizedEvent = {
     summary: '定例会',
@@ -326,5 +352,14 @@ test('detects whether a synchronized event actually changed', () => {
   assert.equal(hasEventChanges(
     { ...synchronizedEvent, start: { timeZone: 'Asia/Tokyo', dateTime: synchronizedEvent.start.dateTime } },
     synchronizedEvent,
+  ), false);
+
+  assert.equal(hasEventChanges(
+    synchronizedEvent,
+    {
+      ...synchronizedEvent,
+      start: { dateTime: '2026-09-08T01:00:00.000Z', timeZone: 'Asia/Tokyo' },
+      end: { dateTime: '2026-09-08T02:00:00.000Z', timeZone: 'Asia/Tokyo' },
+    },
   ), false);
 });

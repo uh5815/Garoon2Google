@@ -154,8 +154,10 @@ Windowsのエクスプローラーから実行する場合は `execute.vbs` を�
 - `Event updated in Google Calendar`: Google Calendarの既存予定を更新
 - `Garoon events fetched successfully`: Garoonからの取得成功
 - `Google Calendar events fetched successfully`: Google Calendarからの取得成功
+- `Event unchanged in Google Calendar`: GaroonとGoogle Calendarの内容が同じため更新なし
 - `Error:`: 処理全体を継続できないエラー
 - `Failed to add/update event in Google Calendar:`: 個別予定の処理に失敗。ほかの予定の処理は継続する場合があります
+- `Synchronization completed with errors`: 一部の同期または削除に失敗。ログを確認してください
 
 ログはコンソールに表示され、プロジェクト内の `logs` フォルダーに `combined-YYYY-MM-DD.log` という日付別のJSONファイルとして保存されます。7日より古いログは、`main.js` 実行時に削除されます。
 
@@ -188,7 +190,7 @@ npm ci
 
 ### 予定が追加・更新されない
 
-Garoon側の予定が同期期間内か、対象ユーザーの `uid` が正しいか、Google Calendarの `calendarId` が正しいかを確認してください。Google Calendar側の取得上限は現在150件です。
+Garoon側の予定が同期期間内か、対象ユーザーの `uid` が正しいか、Google Calendarの `calendarId` が正しいかを確認してください。Google Calendarの予定は複数ページに分けて取得されます。
 
 ## 開発者向けのテスト
 

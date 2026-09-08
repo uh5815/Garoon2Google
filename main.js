@@ -8,7 +8,12 @@ const {
   updateEventInGoogleCalendar,
   deleteEventFromGoogleCalendar,
 } = require('./lib/googleCalendar');
-const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('./lib/eventConverter');
+const {
+  convertGaroonToGoogleEvent,
+  getRecurrenceKey,
+  getLegacyRecurrenceKey,
+  getHistoricalRecurrenceKey,
+} = require('./lib/eventConverter');
 const { logger, cleanupOldLogs } = require('./logger');
 const fs = require('fs').promises;
 const { isDeepStrictEqual } = require('node:util');
@@ -22,6 +27,7 @@ async function loadGoogleCredentials(credentialsPath) {
 
 async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
   const eventsToSynchronize = groupEventsByRecurrence(garoonEvents);
+  let failedCount = 0;
 
   for (const garoonEvent of eventsToSynchronize.values()) {
     try {
@@ -32,9 +38,12 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
         calendarId,
       );
     } catch (eventError) {
+      failedCount += 1;
       logger.error(`Failed to add/update event in Google Calendar: ${eventError.message}`);
     }
   }
+
+  return { failedCount };
 }
 
 async function synchronizeEvent(garoonEvent, googleEvents, googleAuth, calendarId) {
@@ -65,8 +74,29 @@ async function synchronizeEvent(garoonEvent, googleEvents, googleAuth, calendarI
 
 function hasEventChanges(existingEvent, googleEvent) {
   return SYNCHRONIZED_EVENT_FIELDS.some(field => (
-    !isDeepStrictEqual(existingEvent[field], googleEvent[field])
+    !isDeepStrictEqual(
+      normalizeComparableValue(existingEvent[field], field),
+      normalizeComparableValue(googleEvent[field], field),
+    )
   ));
+}
+
+function normalizeComparableValue(value, field) {
+  if (value === undefined && field === 'recurrence') return [];
+  if (!value || typeof value !== 'object') return value;
+  if (field === 'start' || field === 'end') return normalizeDateTime(value);
+  return value;
+}
+
+function normalizeDateTime(value) {
+  if (value.date) return { date: value.date };
+  if (!value.dateTime) return value;
+
+  const timestamp = Date.parse(value.dateTime);
+  return {
+    dateTime: Number.isNaN(timestamp) ? value.dateTime : new Date(timestamp).toISOString(),
+    timeZone: value.timeZone,
+  };
 }
 
 function groupEventsByRecurrence(garoonEvents) {
@@ -78,7 +108,11 @@ function groupEventsByRecurrence(garoonEvents) {
 }
 
 async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, googleAuth, calendarId) {
-  const candidateUIDs = [googleEvent.iCalUID, getLegacyRecurrenceKey(garoonEvent)].filter(Boolean);
+  const candidateUIDs = [
+    googleEvent.iCalUID,
+    getLegacyRecurrenceKey(garoonEvent),
+    getHistoricalRecurrenceKey(garoonEvent),
+  ].filter(Boolean);
   const eventInFetchedList = googleEvents.find(event => candidateUIDs.includes(event.iCalUID));
   if (eventInFetchedList) return eventInFetchedList;
 
@@ -101,6 +135,7 @@ function getGaroonEventKeys(garoonEvents) {
     event.id,
     getRecurrenceKey(event),
     getLegacyRecurrenceKey(event),
+    getHistoricalRecurrenceKey(event),
   ].filter(Boolean)));
 }
 
@@ -112,6 +147,7 @@ function isManagedEvent(event) {
 
 async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
   const eventsToDelete = findGoogleEventsToDelete(garoonEvents, googleEvents);
+  let failedCount = 0;
 
   for (const googleEvent of eventsToDelete) {
     try {
@@ -120,6 +156,7 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
       if (deleteError.code === 404 || deleteError.code === 410) {
         logger.info(`Google Calendar event already deleted: ${googleEvent.id}`);
       } else {
+        failedCount += 1;
         logger.error(`Failed to delete event from Google Calendar: ${deleteError.message}`, {
           eventId: googleEvent.id,
           iCalUID: googleEvent.iCalUID,
@@ -128,6 +165,8 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
       }
     }
   }
+
+  return { failedCount };
 }
 
 async function main() {
@@ -148,10 +187,28 @@ async function main() {
     const googleEvents = await getGoogleCalendarEvents(googleAuth, config.users.calendarId);
     logger.info('Google Calendar events fetched successfully');
 
-    await synchronizeEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
-    await deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
+    const synchronizationResult = await synchronizeEvents(
+      garoonEvents,
+      googleEvents,
+      googleAuth,
+      config.users.calendarId,
+    );
+    const deletionResult = await deleteRemovedEvents(
+      garoonEvents,
+      googleEvents,
+      googleAuth,
+      config.users.calendarId,
+    );
+    if (synchronizationResult.failedCount || deletionResult.failedCount) {
+      logger.error('Synchronization completed with errors', {
+        synchronizationFailures: synchronizationResult.failedCount,
+        deletionFailures: deletionResult.failedCount,
+      });
+      process.exitCode = 1;
+    }
   } catch (error) {
     logger.error(`Error: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 
@@ -166,5 +223,6 @@ module.exports = {
   findGoogleEventsToDelete,
   deleteRemovedEvents,
   hasEventChanges,
+  normalizeComparableValue,
   main,
 };
