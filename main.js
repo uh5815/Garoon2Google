@@ -1,6 +1,6 @@
 const { loadConfig } = require('./lib/config');
 const { getGaroonEvents } = require('./lib/garoon');
-const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, updateEventInGoogleCalendar, deleteEventFromGoogleCalendar } = require('./lib/googleCalendar');
+const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, getGoogleCalendarEventByICalUID, updateEventInGoogleCalendar, deleteEventFromGoogleCalendar } = require('./lib/googleCalendar');
 const { convertGaroonToGoogleEvent } = require('./lib/eventConverter');
 const fs = require('fs').promises;
 
@@ -13,7 +13,8 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
   for (const garoonEvent of garoonEvents) {
     try {
       const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
-      const existingEvent = googleEvents.find(event => event.iCalUID === googleEvent.iCalUID);
+      const existingEvent = googleEvents.find(event => event.iCalUID === googleEvent.iCalUID)
+        || await getGoogleCalendarEventByICalUID(googleAuth, calendarId, googleEvent.iCalUID);
 
       if (existingEvent) {
         const updatedEvent = { ...existingEvent, ...googleEvent };

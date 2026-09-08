@@ -81,3 +81,24 @@ test('finds Google events whose Garoon events were deleted', () => {
 
   assert.deepEqual(findGoogleEventsToDelete(garoonEvents, googleEvents), [googleEvents[1]]);
 });
+
+test('uses dateTime fields when they are complete even if isAllDay is true', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'datetime-123',
+    subject: '時間指定の予定',
+    isAllDay: true,
+    start: { dateTime: '2026-09-08T10:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-09-08T11:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.start, {
+    dateTime: '2026-09-08T10:00:00+09:00',
+    timeZone: 'Asia/Tokyo',
+  });
+  assert.deepEqual(googleEvent.end, {
+    dateTime: '2026-09-08T11:00:00+09:00',
+    timeZone: 'Asia/Tokyo',
+  });
+});
