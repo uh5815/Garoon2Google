@@ -1,0 +1,12 @@
+{
+  "common": {
+    "garoonAuth": "YOUR_GAROON_AUTH",
+    "garoonApiUrl": "https://example.com/api/v1/schedule/events",
+    "googleCredentialsPath": "./lib/credentials.json"
+  },
+  "users": {
+    "name": "YOUR_USER_NAME",
+    "uid": "YOUR_USER_ID",
+    "calendarId": "YOUR_GOOGLE_CALENDAR_ID"
+  }
+}

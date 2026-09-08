@@ -17,4 +17,10 @@ npm install axios
 npm install googleapis
 
 
+設定ファイルの準備
+config.example.jsonをconfig.jsonにコピーし、GaroonとGoogle Calendarの値を設定します。
+lib/credentials.example.jsonをlib/credentials.jsonにコピーし、Google OAuth認証情報を設定します。
+初回実行時にGoogle認証を行うと、token.jsonが生成されます。
+
+
 2. GoogleCloudConsoleでGoogleCalendarAPIを有効にする
