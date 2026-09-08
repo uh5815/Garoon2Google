@@ -10,7 +10,13 @@ async function loadGoogleCredentials(credentialsPath) {
 }
 
 async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
+  const eventsToSynchronize = new Map();
   for (const garoonEvent of garoonEvents) {
+    const key = garoonEvent.repeatId || garoonEvent.id;
+    if (!eventsToSynchronize.has(key)) eventsToSynchronize.set(key, garoonEvent);
+  }
+
+  for (const garoonEvent of eventsToSynchronize.values()) {
     try {
       const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
       const existingEvent = googleEvents.find(event => event.iCalUID === googleEvent.iCalUID)
@@ -31,7 +37,7 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
 }
 
 function findGoogleEventsToDelete(garoonEvents, googleEvents) {
-  const garoonEventIds = new Set(garoonEvents.map(event => event.id));
+  const garoonEventIds = new Set(garoonEvents.flatMap(event => [event.id, event.repeatId].filter(Boolean)));
   return googleEvents.filter(event => (
     !event.deleted &&
     event.description?.startsWith('▼参加者<br>') &&

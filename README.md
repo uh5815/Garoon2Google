@@ -8,9 +8,12 @@ Garoonの予定を正として、Google Calendarへ予定を同期するNode.js�
 
 - Google Calendarに同じ予定がなければ追加します
 - 同じ予定があれば更新します
+- Garoonの繰り返し予定は、Google Calendarの繰り返し予定として登録します
 - Garoonで削除された、このプログラムが作成した予定はGoogle Calendarから削除します
 
 同期先のGoogle Calendarを変更するため、初回はテスト用のアカウントやカレンダーで動作を確認してください。Garoon以外で作成したGoogle Calendarの予定は削除しません。
+
+Garoonで設定された週次および3週ごとの繰り返しと、設定された除外日を反映します。繰り返し対応前に作成された単発のGoogle Calendar予定は、自動的には1つの繰り返し予定へ統合されません。不要な単発予定が残っている場合は、内容を確認してから手動で削除してください。
 
 ## 事前に用意するもの
 
