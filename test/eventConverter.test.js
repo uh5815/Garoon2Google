@@ -172,3 +172,41 @@ test('converts a three-week all-day series to a Google RRULE', () => {
     'EXDATE;VALUE=DATE:20261005',
   ]);
 });
+
+test('converts a monthly day-of-month series to a Google RRULE', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'monthly-occurrence',
+    repeatId: 'monthly-series',
+    subject: '月次予定',
+    start: { date: '2026-09-11' },
+    end: { date: '2026-09-12' },
+    repeatInfo: {
+      type: 'EVERY_MONTH',
+      isAllDay: true,
+      period: { end: '2027-09-07' },
+      dayOfMonth: '11',
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.recurrence, [
+    'RRULE:FREQ=MONTHLY;BYMONTHDAY=11;UNTIL=20270907',
+  ]);
+});
+
+test('does not silently convert an unsupported recurrence type', () => {
+  assert.throws(
+    () => convertGaroonToGoogleEvent({
+      id: 'unsupported-series',
+      repeatId: 'unsupported-repeat',
+      subject: '未対応予定',
+      start: { date: '2026-09-08' },
+      end: { date: '2026-09-09' },
+      repeatInfo: { type: 'EVERY_YEAR', isAllDay: true },
+      attendees: [],
+      notes: '',
+    }),
+    /Unsupported recurrence type: EVERY_YEAR/
+  );
+});
