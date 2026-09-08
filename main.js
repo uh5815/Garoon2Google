@@ -11,6 +11,9 @@ const {
 const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('./lib/eventConverter');
 const { logger, cleanupOldLogs } = require('./logger');
 const fs = require('fs').promises;
+const { isDeepStrictEqual } = require('node:util');
+
+const SYNCHRONIZED_EVENT_FIELDS = ['summary', 'description', 'start', 'end', 'recurrence'];
 
 async function loadGoogleCredentials(credentialsPath) {
   const credentials = await fs.readFile(credentialsPath, 'utf8');
@@ -22,27 +25,48 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
 
   for (const garoonEvent of eventsToSynchronize.values()) {
     try {
-      const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
-      const existingEvent = await findExistingGoogleEvent(
+      await synchronizeEvent(
         garoonEvent,
-        googleEvent,
         googleEvents,
         googleAuth,
         calendarId,
       );
-
-      if (existingEvent) {
-        const updatedEvent = { ...existingEvent, ...googleEvent };
-        await updateEventInGoogleCalendar(googleAuth, updatedEvent, calendarId);
-        logger.info(`Event updated in Google Calendar: ${googleEvent.summary}`);
-      } else {
-        await addEventToGoogleCalendar(googleAuth, googleEvent, calendarId);
-        logger.info(`Event added in Google Calendar: ${googleEvent.summary}`);
-      }
     } catch (eventError) {
       logger.error(`Failed to add/update event in Google Calendar: ${eventError.message}`);
     }
   }
+}
+
+async function synchronizeEvent(garoonEvent, googleEvents, googleAuth, calendarId) {
+  const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
+  const existingEvent = await findExistingGoogleEvent(
+    garoonEvent,
+    googleEvent,
+    googleEvents,
+    googleAuth,
+    calendarId,
+  );
+
+  if (!existingEvent) {
+    await addEventToGoogleCalendar(googleAuth, googleEvent, calendarId);
+    logger.info(`Event added in Google Calendar: ${googleEvent.summary}`);
+    return;
+  }
+
+  if (!hasEventChanges(existingEvent, googleEvent)) {
+    logger.info(`Event unchanged in Google Calendar: ${googleEvent.summary}`);
+    return;
+  }
+
+  const updatedEvent = { ...existingEvent, ...googleEvent };
+  await updateEventInGoogleCalendar(googleAuth, updatedEvent, calendarId);
+  logger.info(`Event updated in Google Calendar: ${googleEvent.summary}`);
+}
+
+function hasEventChanges(existingEvent, googleEvent) {
+  return SYNCHRONIZED_EVENT_FIELDS.some(field => (
+    !isDeepStrictEqual(existingEvent[field], googleEvent[field])
+  ));
 }
 
 function groupEventsByRecurrence(garoonEvents) {
@@ -135,4 +159,12 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { loadGoogleCredentials, synchronizeEvents, findGoogleEventsToDelete, deleteRemovedEvents, main };
+module.exports = {
+  loadGoogleCredentials,
+  synchronizeEvents,
+  synchronizeEvent,
+  findGoogleEventsToDelete,
+  deleteRemovedEvents,
+  hasEventChanges,
+  main,
+};

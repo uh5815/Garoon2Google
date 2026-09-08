@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('../lib/eventConverter');
-const { findGoogleEventsToDelete } = require('../main');
+const { findGoogleEventsToDelete, hasEventChanges } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
   const garoonEvent = {
@@ -301,4 +301,30 @@ test('uses a short stable UID for recurring events and exposes the legacy UID fo
   assert.match(getRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
   assert.match(getLegacyRecurrenceKey(garoonEvent), /^garoon-[A-Za-z0-9_-]+$/);
   assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
+});
+
+test('detects whether a synchronized event actually changed', () => {
+  const synchronizedEvent = {
+    summary: '定例会',
+    description: '▼参加者<br>山田太郎<br><br>議題',
+    start: { dateTime: '2026-09-08T10:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-09-08T11:00:00+09:00', timeZone: 'Asia/Tokyo' },
+  };
+
+  assert.equal(hasEventChanges({
+    ...synchronizedEvent,
+    id: 'google-event-id',
+    etag: 'etag',
+    updated: '2026-09-08T10:00:00Z',
+  }, synchronizedEvent), false);
+
+  assert.equal(hasEventChanges(
+    synchronizedEvent,
+    { ...synchronizedEvent, summary: '変更後の定例会' },
+  ), true);
+
+  assert.equal(hasEventChanges(
+    { ...synchronizedEvent, start: { timeZone: 'Asia/Tokyo', dateTime: synchronizedEvent.start.dateTime } },
+    synchronizedEvent,
+  ), false);
 });
