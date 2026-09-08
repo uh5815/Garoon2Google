@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { convertGaroonToGoogleEvent } = require('../lib/eventConverter');
+const { convertGaroonToGoogleEvent, getRecurrenceKey } = require('../lib/eventConverter');
 const { findGoogleEventsToDelete } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
@@ -143,7 +143,20 @@ test('converts a weekly Garoon series to a Google RRULE', () => {
     notes: '',
   });
 
-  assert.equal(googleEvent.iCalUID, 'series-123');
+  assert.equal(googleEvent.iCalUID, getRecurrenceKey({
+    id: 'occurrence-123',
+    repeatId: 'series-123',
+    subject: '定例会',
+    notes: '',
+    attendees: [],
+    repeatInfo: {
+      type: 'EVERY_WEEK',
+      period: { end: '2027-03-31' },
+      timeZone: 'Asia/Tokyo',
+      dayOfWeek: 'MON',
+      exclusiveDateTimes: [{ start: '2026-07-20T00:00:00+09:00' }],
+    },
+  }));
   assert.deepEqual(googleEvent.recurrence, [
     'RRULE:FREQ=WEEKLY;BYDAY=MON;UNTIL=20270331T235959Z',
     'EXDATE;TZID=Asia/Tokyo:20260720T000000',
@@ -209,4 +222,25 @@ test('does not silently convert an unsupported recurrence type', () => {
     }),
     /Unsupported recurrence type: EVERY_YEAR/
   );
+});
+
+test('converts weekdays to Monday-through-Friday recurrence', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'weekday-occurrence',
+    repeatId: 'weekday-occurrence-id',
+    subject: '平日予定',
+    start: { date: '2026-09-08' },
+    end: { date: '2026-09-09' },
+    repeatInfo: {
+      type: 'EVERY_WEEKDAY',
+      isAllDay: true,
+      period: { end: '2026-10-07' },
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.recurrence, [
+    'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261007',
+  ]);
 });

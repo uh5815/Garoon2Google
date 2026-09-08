@@ -1,7 +1,7 @@
 const { loadConfig } = require('./lib/config');
 const { getGaroonEvents } = require('./lib/garoon');
 const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, getGoogleCalendarEventByICalUID, updateEventInGoogleCalendar, deleteEventFromGoogleCalendar } = require('./lib/googleCalendar');
-const { convertGaroonToGoogleEvent } = require('./lib/eventConverter');
+const { convertGaroonToGoogleEvent, getRecurrenceKey } = require('./lib/eventConverter');
 const fs = require('fs').promises;
 
 async function loadGoogleCredentials(credentialsPath) {
@@ -12,7 +12,7 @@ async function loadGoogleCredentials(credentialsPath) {
 async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
   const eventsToSynchronize = new Map();
   for (const garoonEvent of garoonEvents) {
-    const key = garoonEvent.repeatId || garoonEvent.id;
+    const key = getRecurrenceKey(garoonEvent);
     if (!eventsToSynchronize.has(key)) eventsToSynchronize.set(key, garoonEvent);
   }
 
@@ -37,7 +37,7 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
 }
 
 function findGoogleEventsToDelete(garoonEvents, googleEvents) {
-  const garoonEventIds = new Set(garoonEvents.flatMap(event => [event.id, event.repeatId].filter(Boolean)));
+  const garoonEventIds = new Set(garoonEvents.flatMap(event => [event.id, getRecurrenceKey(event)].filter(Boolean)));
   return googleEvents.filter(event => (
     !event.deleted &&
     event.description?.startsWith('▼参加者<br>') &&
