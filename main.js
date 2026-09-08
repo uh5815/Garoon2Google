@@ -1,6 +1,13 @@
 const { loadConfig } = require('./lib/config');
 const { getGaroonEvents } = require('./lib/garoon');
-const { authorize, addEventToGoogleCalendar, getGoogleCalendarEvents, getGoogleCalendarEventByICalUID, updateEventInGoogleCalendar, deleteEventFromGoogleCalendar } = require('./lib/googleCalendar');
+const {
+  authorize,
+  addEventToGoogleCalendar,
+  getGoogleCalendarEvents,
+  getGoogleCalendarEventByICalUID,
+  updateEventInGoogleCalendar,
+  deleteEventFromGoogleCalendar,
+} = require('./lib/googleCalendar');
 const { convertGaroonToGoogleEvent, getRecurrenceKey, getLegacyRecurrenceKey } = require('./lib/eventConverter');
 const { logger, cleanupOldLogs } = require('./logger');
 const fs = require('fs').promises;
@@ -11,21 +18,18 @@ async function loadGoogleCredentials(credentialsPath) {
 }
 
 async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
-  const eventsToSynchronize = new Map();
-  for (const garoonEvent of garoonEvents) {
-    const key = getRecurrenceKey(garoonEvent);
-    if (!eventsToSynchronize.has(key)) eventsToSynchronize.set(key, garoonEvent);
-  }
+  const eventsToSynchronize = groupEventsByRecurrence(garoonEvents);
 
   for (const garoonEvent of eventsToSynchronize.values()) {
     try {
       const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
-      const legacyICalUID = getLegacyRecurrenceKey(garoonEvent);
-      const existingEvent = googleEvents.find(event => (
-        event.iCalUID === googleEvent.iCalUID || event.iCalUID === legacyICalUID
-      ))
-        || await getGoogleCalendarEventByICalUID(googleAuth, calendarId, googleEvent.iCalUID)
-        || (legacyICalUID && await getGoogleCalendarEventByICalUID(googleAuth, calendarId, legacyICalUID));
+      const existingEvent = await findExistingGoogleEvent(
+        garoonEvent,
+        googleEvent,
+        googleEvents,
+        googleAuth,
+        calendarId,
+      );
 
       if (existingEvent) {
         const updatedEvent = { ...existingEvent, ...googleEvent };
@@ -41,18 +45,45 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
   }
 }
 
+function groupEventsByRecurrence(garoonEvents) {
+  return garoonEvents.reduce((eventsByKey, garoonEvent) => {
+    const key = getRecurrenceKey(garoonEvent);
+    if (!eventsByKey.has(key)) eventsByKey.set(key, garoonEvent);
+    return eventsByKey;
+  }, new Map());
+}
+
+async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, googleAuth, calendarId) {
+  const candidateUIDs = [googleEvent.iCalUID, getLegacyRecurrenceKey(garoonEvent)].filter(Boolean);
+  const eventInFetchedList = googleEvents.find(event => candidateUIDs.includes(event.iCalUID));
+  if (eventInFetchedList) return eventInFetchedList;
+
+  // Old recurring events used a long Base64URL UID. Keep looking it up during migration.
+  for (const iCalUID of candidateUIDs) {
+    const existingEvent = await getGoogleCalendarEventByICalUID(googleAuth, calendarId, iCalUID);
+    if (existingEvent) return existingEvent;
+  }
+  return undefined;
+}
+
 function findGoogleEventsToDelete(garoonEvents, googleEvents) {
-  const garoonEventIds = new Set(garoonEvents.flatMap(event => [
+  const activeGaroonEventKeys = getGaroonEventKeys(garoonEvents);
+  return googleEvents.filter(event => isManagedEvent(event)
+    && !activeGaroonEventKeys.has(event.iCalUID));
+}
+
+function getGaroonEventKeys(garoonEvents) {
+  return new Set(garoonEvents.flatMap(event => [
     event.id,
     getRecurrenceKey(event),
     getLegacyRecurrenceKey(event),
   ].filter(Boolean)));
-  return googleEvents.filter(event => (
-    !event.deleted &&
-    event.status !== 'cancelled' &&
-    event.description?.startsWith('▼参加者<br>') &&
-    !garoonEventIds.has(event.iCalUID)
-  ));
+}
+
+function isManagedEvent(event) {
+  return !event.deleted
+    && event.status !== 'cancelled'
+    && event.description?.startsWith('▼参加者<br>');
 }
 
 async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
