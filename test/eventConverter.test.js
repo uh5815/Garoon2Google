@@ -41,6 +41,35 @@ test('uses date fields for an all-day Garoon event', () => {
   assert.equal(googleEvent.iCalUID, 'all-day-123');
 });
 
+test('detects an all-day event from date fields', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'date-only-123',
+    subject: '抽選日',
+    start: { date: '2026-09-08' },
+    end: { date: '2026-09-09' },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.start, { date: '2026-09-08' });
+  assert.deepEqual(googleEvent.end, { date: '2026-09-09' });
+});
+
+test('rejects events without a complete time range', () => {
+  assert.throws(
+    () => convertGaroonToGoogleEvent({
+      id: 'invalid-123',
+      subject: '不正な予定',
+      isAllDay: false,
+      start: {},
+      end: {},
+      attendees: [],
+      notes: '',
+    }),
+    /Timed event has invalid dateTimes: invalid-123/
+  );
+});
+
 test('finds Google events whose Garoon events were deleted', () => {
   const garoonEvents = [{ id: 'still-exists' }];
   const googleEvents = [
