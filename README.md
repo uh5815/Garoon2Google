@@ -149,6 +149,16 @@ node main.js
 
 Windowsのエクスプローラーから実行する場合は `execute.vbs` をダブルクリックします。コマンド画面を表示せずに同期が実行されます。実行結果は `logs` フォルダーのログで確認してください。
 
+### キャンセル済みGoogleイベントの削除
+
+通常同期とは別に、Google Calendar API上に残っている `status: cancelled` のイベントを削除する場合は、次のコマンドを実行します。対象カレンダーのキャンセル済みイベントを全ページ取得してから削除します。
+
+```powershell
+node main.js --delete-cancelled-google-events
+```
+
+この操作は元に戻せません。対象カレンダーとGoogleアカウントを確認してから実行してください。
+
 ## 実行結果の見方
 
 - `Event added in Google Calendar`: Google Calendarへ新規追加

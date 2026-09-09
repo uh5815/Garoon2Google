@@ -6,7 +6,11 @@ const {
   getLegacyRecurrenceKey,
   getHistoricalRecurrenceKey,
 } = require('../lib/eventConverter');
-const { findGoogleEventsToDelete, hasEventChanges } = require('../main');
+const {
+  findGoogleEventsToDelete,
+  hasEventChanges,
+  isDeleteCancelledGoogleEventsRequested,
+} = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
   const garoonEvent = {
@@ -21,7 +25,7 @@ test('converts a timed Garoon event without changing its fields', () => {
 
   assert.deepEqual(convertGaroonToGoogleEvent(garoonEvent), {
     summary: '定例会',
-    iCalUID: 'event-123',
+    iCalUID: 'garoonevent-123',
     start: { dateTime: '2026-09-08T10:00:00+09:00', timeZone: 'Asia/Tokyo' },
     end: { dateTime: '2026-09-08T11:00:00+09:00', timeZone: 'Asia/Tokyo' },
     description: '▼参加者<br>山田太郎, 佐藤花子<br><br>議題を確認',
@@ -43,7 +47,7 @@ test('uses date fields for an all-day Garoon event', () => {
 
   assert.deepEqual(googleEvent.start, { date: '2026-09-08' });
   assert.deepEqual(googleEvent.end, { date: '2026-09-09' });
-  assert.equal(googleEvent.iCalUID, 'all-day-123');
+  assert.equal(googleEvent.iCalUID, 'garoonall-day-123');
 });
 
 test('detects an all-day event from date fields', () => {
@@ -270,7 +274,7 @@ test('normalizes full weekday names before creating a Google RRULE', () => {
   assert.equal(googleEvent.recurrence[0], 'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20270331T235959Z');
 });
 
-test('shortens an oversized recurring UID without changing its identity', () => {
+test('uses repeatId as the recurring UID even when event content is large', () => {
   const googleEvent = convertGaroonToGoogleEvent({
     id: 'long-uid-occurrence',
     repeatId: 'long-uid-series',
@@ -287,7 +291,7 @@ test('shortens an oversized recurring UID without changing its identity', () => 
     notes: 'x'.repeat(2000),
   });
 
-  assert.match(googleEvent.iCalUID, /^garoon-[a-f0-9]{64}$/);
+  assert.equal(googleEvent.iCalUID, 'garoonlong-uid-series');
   assert.ok(googleEvent.iCalUID.length <= 1024);
 });
 
@@ -303,7 +307,7 @@ test('uses a short stable UID for recurring events and exposes the legacy UID fo
     notes: '',
   };
 
-  assert.match(getRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
+  assert.equal(getRecurrenceKey(garoonEvent), 'garoonseries-789');
   assert.match(getLegacyRecurrenceKey(garoonEvent), /^garoon-[A-Za-z0-9_-]+$/);
   assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
 });
@@ -325,6 +329,7 @@ test('uses repeatId as recurring identity while retaining previous UID lookup ke
     subject: '件名変更後',
     notes: 'メモ変更後',
   }));
+  assert.equal(getRecurrenceKey(garoonEvent), 'garoonseries-790');
   assert.notEqual(getHistoricalRecurrenceKey(garoonEvent), getRecurrenceKey(garoonEvent));
   assert.match(getHistoricalRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
 });
@@ -362,4 +367,9 @@ test('detects whether a synchronized event actually changed', () => {
       end: { dateTime: '2026-09-08T02:00:00.000Z', timeZone: 'Asia/Tokyo' },
     },
   ), false);
+});
+
+test('recognizes the explicit cancelled-event cleanup flag', () => {
+  assert.equal(isDeleteCancelledGoogleEventsRequested(['--delete-cancelled-google-events']), true);
+  assert.equal(isDeleteCancelledGoogleEventsRequested([]), false);
 });
