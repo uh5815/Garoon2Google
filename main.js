@@ -116,7 +116,7 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
   const eventInFetchedList = googleEvents.find(event => candidateUIDs.includes(event.iCalUID));
   if (eventInFetchedList) return eventInFetchedList;
 
-  // Old recurring events used a long Base64URL UID. Keep looking it up during migration.
+  // 移行期間中は、旧形式の長いBase64URL UIDでも検索できるようにする。
   for (const iCalUID of candidateUIDs) {
     const existingEvent = await getGoogleCalendarEventByICalUID(googleAuth, calendarId, iCalUID);
     if (existingEvent) return existingEvent;
