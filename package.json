@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "save-and-push": "node scripts/save-and-push.js"
   },
   "keywords": [],
   "author": "",
