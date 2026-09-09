@@ -261,7 +261,7 @@ async function main() {
     const garoonEvents = await getGaroonEvents(config);
     logger.info('Garoon events fetched successfully');
 
-    const credentials = await loadGoogleCredentials(config.common.googleCredentialsPath);
+    const credentials = await loadGoogleCredentials(config.google.credentialsPath);
     logger.info('Credentials loaded successfully');
 
     const googleAuth = await authorize(credentials);
