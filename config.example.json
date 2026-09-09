@@ -1,12 +1,17 @@
 {
-  "common": {
-    "garoonAuth": "YOUR_GAROON_AUTH",
-    "garoonApiUrl": "https://example.com/api/v1/schedule/events",
-    "googleCredentialsPath": "./lib/credentials.json"
+  "garoon": {
+    "apiUrl": "https://example.com/api/v1/schedule/events",
+    "auth": "YOUR_GAROON_AUTH",
+    "user": {
+      "name": "YOUR_USER_NAME",
+      "id": "YOUR_USER_ID"
+    }
   },
-  "users": {
-    "name": "YOUR_USER_NAME",
-    "uid": "YOUR_USER_ID",
+  "google": {
+    "credentialsPath": "./lib/credentials.json",
     "calendarId": "YOUR_GOOGLE_CALENDAR_ID"
+  },
+  "sync": {
+    "mode": "apply-and-delete"
   }
 }

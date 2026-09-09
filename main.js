@@ -267,20 +267,20 @@ async function main() {
     const googleAuth = await authorize(credentials);
     logger.info('Google authorization successful');
 
-    const googleEvents = await getGoogleCalendarEvents(googleAuth, config.users.calendarId);
+    const googleEvents = await getGoogleCalendarEvents(googleAuth, config.google.calendarId);
     logger.info('Google Calendar events fetched successfully');
 
     const synchronizationResult = await synchronizeEvents(
       garoonEvents,
       googleEvents,
       googleAuth,
-      config.users.calendarId,
+      config.google.calendarId,
     );
     const deletionResult = await deleteRemovedEvents(
       garoonEvents,
       googleEvents,
       googleAuth,
-      config.users.calendarId,
+      config.google.calendarId,
     );
     if (synchronizationResult.failedCount || deletionResult.failedCount) {
       logger.error('Synchronization completed with errors', {
