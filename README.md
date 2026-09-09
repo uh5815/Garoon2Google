@@ -202,6 +202,20 @@ npm test
 
 すべてのテストが成功すると、`pass` の件数が表示されます。
 
+## コード構成
+
+| ファイル | 役割 |
+| --- | --- |
+| `main.js` | 同期全体の流れ、差分判定、削除判定、終了コードの管理 |
+| `lib/garoon.js` | Garoon APIからの予定取得 |
+| `lib/googleCalendar.js` | Google OAuthとGoogle Calendar API操作 |
+| `lib/eventConverter.js` | GaroonイベントからGoogleイベントへの変換、RRULE、UID生成 |
+| `lib/config.js` | `config.json` の読み込み |
+| `logger.js` | コンソール出力、日付別ログ、古いログの削除 |
+| `test/eventConverter.test.js` | イベント変換、UID、削除判定、差分判定の回帰テスト |
+
+主要な関数にはJSDoc形式の日本語コメントがあります。引数、戻り値、例外、旧UID移行などの設計意図を確認するときは、対象関数の直前にあるコメントを参照してください。
+
 ## 秘密情報について
 
 次のファイルは秘密情報を含むため、Git管理から除外されています。

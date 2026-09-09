@@ -6,6 +6,7 @@ const path = require('path');
 const logDirectory = path.join(process.cwd(), 'logs');
 const logFilePattern = /^combined-(\d{4}-\d{2}-\d{2})\.log$/;
 
+// コンソール出力と日付別ファイル出力を同じLoggerへ集約する。
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.json(),
@@ -21,6 +22,11 @@ const logger = winston.createLogger({
     ]
 });
 
+/**
+ * 7日より古い日付別ログを削除する。
+ * ローテーション機能とは別に、アプリ起動時にも保持期間を確認する。
+ * @returns {Promise<void>}
+ */
 async function cleanupOldLogs() {
     await fs.mkdir(logDirectory, { recursive: true });
     const files = await fs.readdir(logDirectory, { withFileTypes: true });

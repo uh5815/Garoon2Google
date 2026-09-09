@@ -20,11 +20,24 @@ const { isDeepStrictEqual } = require('node:util');
 
 const SYNCHRONIZED_EVENT_FIELDS = ['summary', 'description', 'start', 'end', 'recurrence'];
 
+/**
+ * Google OAuth認証情報JSONを読み込む。
+ * @param {string} credentialsPath Google Cloudから取得した認証情報JSONのパス
+ * @returns {Promise<object>} 認証情報オブジェクト
+ */
 async function loadGoogleCredentials(credentialsPath) {
   const credentials = await fs.readFile(credentialsPath, 'utf8');
   return JSON.parse(credentials);
 }
 
+/**
+ * Garoonを正として、イベントを追加・更新する。
+ * @param {object[]} garoonEvents Garoonから取得したイベント一覧
+ * @param {object[]} googleEvents Google Calendarから取得したイベント一覧
+ * @param {object} googleAuth Google APIの認証済みクライアント
+ * @param {string} calendarId 同期先Google CalendarのID
+ * @returns {Promise<{failedCount: number}>} 同期に失敗したイベント数
+ */
 async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
   const eventsToSynchronize = groupEventsByRecurrence(garoonEvents);
   let failedCount = 0;
@@ -46,6 +59,15 @@ async function synchronizeEvents(garoonEvents, googleEvents, googleAuth, calenda
   return { failedCount };
 }
 
+/**
+ * 1件のGaroonイベントをGoogle Calendarへ反映する。
+ * 既存イベントに差分がない場合は、更新APIを呼び出さない。
+ * @param {object} garoonEvent 同期対象のGaroonイベント
+ * @param {object[]} googleEvents 取得済みのGoogleイベント一覧
+ * @param {object} googleAuth Google APIの認証済みクライアント
+ * @param {string} calendarId 同期先Google CalendarのID
+ * @returns {Promise<void>}
+ */
 async function synchronizeEvent(garoonEvent, googleEvents, googleAuth, calendarId) {
   const googleEvent = convertGaroonToGoogleEvent(garoonEvent);
   const existingEvent = await findExistingGoogleEvent(
@@ -72,6 +94,13 @@ async function synchronizeEvent(garoonEvent, googleEvents, googleAuth, calendarI
   logger.info(`Event updated in Google Calendar: ${googleEvent.summary}`);
 }
 
+/**
+ * 同期対象フィールドだけを比較し、Google側に更新が必要か判定する。
+ * 日時は表記ではなく実際の時刻として比較する。
+ * @param {object} existingEvent Google Calendarに保存されているイベント
+ * @param {object} googleEvent Garoonから変換したイベント
+ * @returns {boolean} 更新が必要ならtrue
+ */
 function hasEventChanges(existingEvent, googleEvent) {
   return SYNCHRONIZED_EVENT_FIELDS.some(field => (
     !isDeepStrictEqual(
@@ -81,6 +110,12 @@ function hasEventChanges(existingEvent, googleEvent) {
   ));
 }
 
+/**
+ * 差分比較用にイベント値を正規化する。
+ * @param {*} value 比較対象の値
+ * @param {string} field イベントフィールド名
+ * @returns {*} 比較用に正規化した値
+ */
 function normalizeComparableValue(value, field) {
   if (value === undefined && field === 'recurrence') return [];
   if (!value || typeof value !== 'object') return value;
@@ -88,6 +123,11 @@ function normalizeComparableValue(value, field) {
   return value;
 }
 
+/**
+ * Google Calendarの日時オブジェクトを比較用のUTC形式へ変換する。
+ * @param {object} value dateまたはdateTimeを持つ日時オブジェクト
+ * @returns {object} 比較用日時オブジェクト
+ */
 function normalizeDateTime(value) {
   if (value.date) return { date: value.date };
   if (!value.dateTime) return value;
@@ -99,6 +139,11 @@ function normalizeDateTime(value) {
   };
 }
 
+/**
+ * 繰り返しシリーズごとに最初のイベントだけを残す。
+ * @param {object[]} garoonEvents Garoonイベント一覧
+ * @returns {Map<string, object>} シリーズUIDをキーにしたイベントMap
+ */
 function groupEventsByRecurrence(garoonEvents) {
   return garoonEvents.reduce((eventsByKey, garoonEvent) => {
     const key = getRecurrenceKey(garoonEvent);
@@ -107,6 +152,15 @@ function groupEventsByRecurrence(garoonEvents) {
   }, new Map());
 }
 
+/**
+ * 現行UIDと移行用の旧UIDを使ってGoogle側の既存イベントを検索する。
+ * @param {object} garoonEvent 検索対象のGaroonイベント
+ * @param {object} googleEvent Garoonから変換したイベント
+ * @param {object[]} googleEvents 取得済みのGoogleイベント一覧
+ * @param {object} googleAuth Google APIの認証済みクライアント
+ * @param {string} calendarId 同期先Google CalendarのID
+ * @returns {Promise<object|undefined>} 見つかったGoogleイベント、なければundefined
+ */
 async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, googleAuth, calendarId) {
   const candidateUIDs = [
     googleEvent.iCalUID,
@@ -124,12 +178,23 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
   return undefined;
 }
 
+/**
+ * Garoonに存在しない、同期対象のGoogleイベントを抽出する。
+ * @param {object[]} garoonEvents 現在のGaroonイベント一覧
+ * @param {object[]} googleEvents 現在のGoogleイベント一覧
+ * @returns {object[]} 削除対象のGoogleイベント一覧
+ */
 function findGoogleEventsToDelete(garoonEvents, googleEvents) {
   const activeGaroonEventKeys = getGaroonEventKeys(garoonEvents);
   return googleEvents.filter(event => isManagedEvent(event)
     && !activeGaroonEventKeys.has(event.iCalUID));
 }
 
+/**
+ * Garoonイベントから、現行UIDと旧UIDを含む照合キーを作成する。
+ * @param {object[]} garoonEvents Garoonイベント一覧
+ * @returns {Set<string>} Googleイベント照合用のUID集合
+ */
 function getGaroonEventKeys(garoonEvents) {
   return new Set(garoonEvents.flatMap(event => [
     event.id,
@@ -139,12 +204,25 @@ function getGaroonEventKeys(garoonEvents) {
   ].filter(Boolean)));
 }
 
+/**
+ * このプログラムが作成したGoogleイベントか判定する。
+ * @param {object} event Google Calendarイベント
+ * @returns {boolean} 同期管理対象ならtrue
+ */
 function isManagedEvent(event) {
   return !event.deleted
     && event.status !== 'cancelled'
     && event.description?.startsWith('▼参加者<br>');
 }
 
+/**
+ * Garoonで削除されたGoogleイベントを削除する。
+ * @param {object[]} garoonEvents 現在のGaroonイベント一覧
+ * @param {object[]} googleEvents 現在のGoogleイベント一覧
+ * @param {object} googleAuth Google APIの認証済みクライアント
+ * @param {string} calendarId 同期先Google CalendarのID
+ * @returns {Promise<{failedCount: number}>} 削除に失敗したイベント数
+ */
 async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calendarId) {
   const eventsToDelete = findGoogleEventsToDelete(garoonEvents, googleEvents);
   let failedCount = 0;
@@ -169,6 +247,11 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
   return { failedCount };
 }
 
+/**
+ * 設定読込、Garoon取得、Google認証、同期、削除を順番に実行する。
+ * 致命的エラーまたは一部失敗がある場合は終了コードを1にする。
+ * @returns {Promise<void>}
+ */
 async function main() {
   try {
     await cleanupOldLogs();
