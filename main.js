@@ -139,17 +139,17 @@ async function main() {
     const garoonEvents = await getGaroonEvents(config);
     logger.info('Garoon events fetched successfully');
 
-    const credentials = await loadGoogleCredentials(config.common.googleCredentialsPath);
+    const credentials = await loadGoogleCredentials(config.google.credentialsPath);
     logger.info('Credentials loaded successfully');
 
     const googleAuth = await authorize(credentials);
     logger.info('Google authorization successful');
 
-    const googleEvents = await getGoogleCalendarEvents(googleAuth, config.users.calendarId);
+    const googleEvents = await getGoogleCalendarEvents(googleAuth, config.google.calendarId);
     logger.info('Google Calendar events fetched successfully');
 
-    await synchronizeEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
-    await deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, config.users.calendarId);
+    await synchronizeEvents(garoonEvents, googleEvents, googleAuth, config.google.calendarId);
+    await deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, config.google.calendarId);
   } catch (error) {
     logger.error(`Error: ${error.message}`);
   }

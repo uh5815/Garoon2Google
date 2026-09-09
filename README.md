@@ -103,16 +103,17 @@ Copy-Item config.example.json config.json
 
 | 項目 | 設定する内容 |
 | --- | --- |
-| `common.garoonAuth` | Garoon APIで使用する認証値 |
-| `common.garoonApiUrl` | Garoonの予定API URL |
-| `common.googleCredentialsPath` | Google認証情報JSONへのパス。通常は変更不要 |
-| `users.name` | 対象ユーザーの名前 |
-| `users.uid` | Garoonの対象ユーザーID |
-| `users.calendarId` | 同期先Google CalendarのカレンダーID |
+| `garoon.apiUrl` | Garoonの予定API URL |
+| `garoon.auth` | Garoon APIで使用する認証値 |
+| `garoon.user.name` | Garoonの対象ユーザー名 |
+| `garoon.user.id` | Garoonの対象ユーザーID |
+| `google.credentialsPath` | Google認証情報JSONへのパス。通常は変更不要 |
+| `google.calendarId` | 同期先Google CalendarのカレンダーID |
+| `sync.mode` | 同期動作モード |
 
-`calendarId` はGoogle Calendarの「設定と共有」で対象カレンダーを開き、「カレンダーの統合」にある「カレンダーID」から確認できます。
+`google.calendarId` はGoogle Calendarの「設定と共有」で対象カレンダーを開き、「カレンダーの統合」にある「カレンダーID」から確認できます。
 
-`garoonAuth` はGaroon環境の管理者または担当者から指定された値を使用してください。認証値の作り方や必要な権限は環境によって異なるため、推測して変更しないでください。
+`garoon.auth` はGaroon環境の管理者または担当者から指定された値を使用してください。認証値の作り方や必要な権限は環境によって異なるため、推測して変更しないでください。
 
 ## 5. 初回実行とGoogle認証
 
@@ -184,11 +185,11 @@ npm ci
 
 ### Garoon APIへの接続に失敗する
 
-`config.json` のAPI URL、`garoonAuth`、対象ユーザーの `uid` を確認してください。社内ネットワークやVPNが必要な環境では、Garoonへアクセスできるネットワークから実行してください。
+`config.json` の `garoon.apiUrl`、`garoon.auth`、`garoon.user.id` を確認してください。社内ネットワークやVPNが必要な環境では、Garoonへアクセスできるネットワークから実行してください。
 
 ### 予定が追加・更新されない
 
-Garoon側の予定が同期期間内か、対象ユーザーの `uid` が正しいか、Google Calendarの `calendarId` が正しいかを確認してください。Google Calendar側の取得上限は現在150件です。
+Garoon側の予定が同期期間内か、対象ユーザーの `garoon.user.id` が正しいか、Google Calendarの `google.calendarId` が正しいかを確認してください。Google Calendar側の取得上限は現在150件です。
 
 ## 開発者向けのテスト
 
