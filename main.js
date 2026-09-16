@@ -285,6 +285,10 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
  * @returns {Promise<void>}
  */
 async function main() {
+  const startedAt = Date.now();
+  let runStatus = 'failed';
+  logger.info('Synchronization started');
+
   try {
     await cleanupOldLogs();
     const config = await loadConfig();
@@ -332,10 +336,18 @@ async function main() {
         deletionFailures,
       });
       process.exitCode = 1;
+      runStatus = 'completed with errors';
+    } else {
+      runStatus = 'completed';
     }
   } catch (error) {
     logger.error(`Error: ${error.message}`);
     process.exitCode = 1;
+  } finally {
+    logger.info('Synchronization finished', {
+      status: runStatus,
+      durationMs: Date.now() - startedAt,
+    });
   }
 }
 
