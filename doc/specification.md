@@ -102,9 +102,6 @@ Google Calendarとの照合に使う安定したUIDを次の規則で作成す�
 - 単発予定: `garoon` + GaroonイベントID
 - 繰り返し予定を含むすべての予定: `garoon` + GaroonイベントID
 - GaroonイベントIDがない場合: UIDを生成せず、`Garoon event has invalid id` エラーにする
-- 値が空、長すぎる、またはiCalendar UIDとして許可しない文字を含む場合: SHA-256ハッシュへ置換
-
-過去形式との移行用に、Base64URL形式の旧UIDと、repeatId導入前のSHA-256形式UIDを生成できる。旧実装で作成された `garoon + repeatId` UIDも既存Googleイベントの検索・削除判定候補に含める。
 
 ## 3. Google Calendarとの同期
 
@@ -119,7 +116,7 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 ### 3.3 追加・更新
 
 1. GaroonイベントをGoogleイベントへ変換する。
-2. 現行UID、GaroonイベントID、旧UID、過去UIDの順でGoogleイベントを探す。
+2. 現行UIDとGaroonイベントIDでGoogleイベントを探す。
 3. 見つからなければ `events.insert` で追加する。
 4. 見つかった場合、`summary`、`description`、`start`、`end`、`recurrence` を比較する。RRULEのパラメーター順序はGoogle Calendar側で並べ替えられるため、順序を正規化して比較する。
 5. 差分がなければ更新しない。
@@ -136,7 +133,7 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 - 説明が `▼参加者<br>` で始まる
 - 現在のGaroonイベントから生成した照合キー集合にUIDが存在しない
 
-照合キー集合にはGaroonイベントID、現行UID、旧UID、過去UIDを含める。削除APIが404または410を返した場合は、すでに削除済みとして扱う。それ以外の失敗は件数を記録し、終了コードを1にする。
+照合キー集合にはGaroonイベントIDと現行UIDを含める。削除APIが404または410を返した場合は、すでに削除済みとして扱う。それ以外の失敗は件数を記録し、終了コードを1にする。
 
 ## 4. エラーとログ
 

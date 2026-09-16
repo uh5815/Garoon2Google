@@ -11,8 +11,6 @@ const {
 const {
   convertGaroonToGoogleEvent,
   getRecurrenceKey,
-  getLegacyRecurrenceKey,
-  getHistoricalRecurrenceKey,
 } = require('./lib/eventConverter');
 const { logger, cleanupOldLogs } = require('./logger');
 const fs = require('fs').promises;
@@ -168,7 +166,7 @@ function groupEventsByRecurrence(garoonEvents) {
 }
 
 /**
- * 現行UIDと移行用の旧UIDを使ってGoogle側の既存イベントを検索する。
+ * 現行UIDを使ってGoogle側の既存イベントを検索する。
  * @param {object} garoonEvent 検索対象のGaroonイベント
  * @param {object} googleEvent Garoonから変換したイベント
  * @param {object[]} googleEvents 取得済みのGoogleイベント一覧
@@ -181,8 +179,6 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
     googleEvent.iCalUID,
     garoonEvent.id,
     garoonEvent.repeatId && `garoon${garoonEvent.repeatId}`,
-    getLegacyRecurrenceKey(garoonEvent),
-    getHistoricalRecurrenceKey(garoonEvent),
   ].filter(Boolean);
   const eventInFetchedList = googleEvents.find(event => (
     candidateUIDs.includes(event.iCalUID)
@@ -191,7 +187,6 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
   ));
   if (eventInFetchedList) return eventInFetchedList;
 
-  // 移行期間中は、旧形式の長いBase64URL UIDでも検索できるようにする。
   for (const iCalUID of candidateUIDs) {
     const existingEvent = await getGoogleCalendarEventByICalUID(googleAuth, calendarId, iCalUID);
     if (existingEvent) return existingEvent;
@@ -212,7 +207,7 @@ function findGoogleEventsToDelete(garoonEvents, googleEvents) {
 }
 
 /**
- * Garoonイベントから、現行UIDと旧UIDを含む照合キーを作成する。
+ * Garoonイベントから、現行UIDの照合キーを作成する。
  * @param {object[]} garoonEvents Garoonイベント一覧
  * @returns {Set<string>} Googleイベント照合用のUID集合
  */
@@ -221,8 +216,6 @@ function getGaroonEventKeys(garoonEvents) {
     event.id,
     getRecurrenceKey(event),
     event.repeatId && `garoon${event.repeatId}`,
-    getLegacyRecurrenceKey(event),
-    getHistoricalRecurrenceKey(event),
   ].filter(Boolean)));
 }
 
@@ -254,11 +247,10 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
       await deleteEventFromGoogleCalendar(googleAuth, googleEvent.id, calendarId, googleEvent.summary);
     } catch (deleteError) {
       if (deleteError.code === 404 || deleteError.code === 410) {
-        logger.info(`Google Calendar event already deleted: ${googleEvent.id}`);
+        logger.info('Google Calendar event already deleted', { summary: googleEvent.summary });
       } else {
         failedCount += 1;
         logger.error(`Failed to delete event from Google Calendar: ${deleteError.message}`, {
-          eventId: googleEvent.id,
           iCalUID: googleEvent.iCalUID,
           summary: googleEvent.summary,
         });

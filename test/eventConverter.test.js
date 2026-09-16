@@ -3,8 +3,6 @@ const assert = require('node:assert/strict');
 const {
   convertGaroonToGoogleEvent,
   getRecurrenceKey,
-  getLegacyRecurrenceKey,
-  getHistoricalRecurrenceKey,
 } = require('../lib/eventConverter');
 const {
   findGoogleEventsToDelete,
@@ -409,24 +407,7 @@ test('uses the Garoon event ID as the recurring UID even when event content is l
   assert.ok(googleEvent.iCalUID.length <= 1024);
 });
 
-test('uses a short stable UID for recurring events and exposes the legacy UID for migration', () => {
-  const garoonEvent = {
-    id: 'occurrence-789',
-    repeatId: 'series-789',
-    subject: '移行対象の予定',
-    start: { date: '2026-09-14' },
-    end: { date: '2026-09-15' },
-    repeatInfo: { type: 'EVERY_WEEK', dayOfWeek: 'MON' },
-    attendees: [],
-    notes: '',
-  };
-
-  assert.equal(getRecurrenceKey(garoonEvent), 'garoonoccurrence-789');
-  assert.match(getLegacyRecurrenceKey(garoonEvent), /^garoon-[A-Za-z0-9_-]+$/);
-  assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
-});
-
-test('uses the Garoon event ID as recurring identity while retaining previous UID lookup keys', () => {
+test('uses the Garoon event ID as recurring identity', () => {
   const garoonEvent = {
     id: 'occurrence-790',
     repeatId: 'series-790',
@@ -444,8 +425,6 @@ test('uses the Garoon event ID as recurring identity while retaining previous UI
     notes: 'メモ変更後',
   }));
   assert.equal(getRecurrenceKey(garoonEvent), 'garoonoccurrence-790');
-  assert.notEqual(getHistoricalRecurrenceKey(garoonEvent), getRecurrenceKey(garoonEvent));
-  assert.match(getHistoricalRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
 });
 
 test('keeps one recurring UID when repeatId changes per occurrence', () => {
