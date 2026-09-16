@@ -64,6 +64,21 @@ test('detects an all-day event from date fields', () => {
   assert.deepEqual(googleEvent.end, { date: '2026-09-09' });
 });
 
+test('uses the top-level all-day flag for Garoon events returned with dateTime fields', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'all-day-datetime-123',
+    subject: '終日予定',
+    isAllDay: true,
+    start: { dateTime: '2026-09-08T00:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-09-08T23:59:59+09:00', timeZone: 'Asia/Tokyo' },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.start, { date: '2026-09-08' });
+  assert.deepEqual(googleEvent.end, { date: '2026-09-09' });
+});
+
 test('rejects events without a complete time range', () => {
   assert.throws(
     () => convertGaroonToGoogleEvent({
@@ -173,17 +188,17 @@ test('converts a weekly Garoon series to a Google RRULE', () => {
   ]);
 });
 
-test('converts a three-week all-day series to a Google RRULE', () => {
+test('converts a third-week all-day series to a monthly Google RRULE', () => {
   const googleEvent = convertGaroonToGoogleEvent({
     id: 'occurrence-456',
     repeatId: 'series-456',
     subject: '定休日',
-    start: { date: '2026-09-14' },
-    end: { date: '2026-09-15' },
+    start: { date: '2026-09-15' },
+    end: { date: '2026-09-16' },
     repeatInfo: {
       type: 'EVERY_3RDWEEK',
       period: { end: '2026-12-31' },
-      dayOfWeek: 'MON',
+      dayOfWeek: 'TUE',
       exclusiveDateTimes: [{ start: '2026-10-05T00:00:00+09:00' }],
     },
     attendees: [],
@@ -191,7 +206,7 @@ test('converts a three-week all-day series to a Google RRULE', () => {
   });
 
   assert.deepEqual(googleEvent.recurrence, [
-    'RRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=MO;UNTIL=20261231',
+    'RRULE:FREQ=MONTHLY;BYDAY=3TU;UNTIL=20261231',
     'EXDATE;VALUE=DATE:20261005',
   ]);
 });
