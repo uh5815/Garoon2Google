@@ -257,6 +257,29 @@ test('converts a third-week all-day series to a monthly Google RRULE', () => {
   ]);
 });
 
+test('converts a daily series with excluded dates to a Google RRULE', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'daily-occurrence',
+    repeatId: 'daily-series',
+    subject: '毎日予定',
+    start: { date: '2026-09-17' },
+    end: { date: '2026-09-18' },
+    repeatInfo: {
+      type: 'EVERY_DAY',
+      isAllDay: true,
+      period: { end: '2026-10-20' },
+      exclusiveDateTimes: [{ start: '2026-09-23T00:00:00+09:00' }],
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.recurrence, [
+    'RRULE:FREQ=DAILY;UNTIL=20261020',
+    'EXDATE;VALUE=DATE:20260923',
+  ]);
+});
+
 test('converts monthly weekday ordinal series to Google RRULEs', () => {
   const recurrenceCases = [
     ['EVERY_1STWEEK', 'SUN', '1SU'],
@@ -367,7 +390,7 @@ test('normalizes full weekday names before creating a Google RRULE', () => {
   assert.equal(googleEvent.recurrence[0], 'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20270331T235959Z');
 });
 
-test('uses repeatId as the recurring UID even when event content is large', () => {
+test('uses the Garoon event ID as the recurring UID even when event content is large', () => {
   const googleEvent = convertGaroonToGoogleEvent({
     id: 'long-uid-occurrence',
     repeatId: 'long-uid-series',
@@ -384,7 +407,7 @@ test('uses repeatId as the recurring UID even when event content is large', () =
     notes: 'x'.repeat(2000),
   });
 
-  assert.equal(googleEvent.iCalUID, 'garoonlong-uid-series');
+  assert.equal(googleEvent.iCalUID, 'garoonlong-uid-occurrence');
   assert.ok(googleEvent.iCalUID.length <= 1024);
 });
 
@@ -400,12 +423,12 @@ test('uses a short stable UID for recurring events and exposes the legacy UID fo
     notes: '',
   };
 
-  assert.equal(getRecurrenceKey(garoonEvent), 'garoonseries-789');
+  assert.equal(getRecurrenceKey(garoonEvent), 'garoonoccurrence-789');
   assert.match(getLegacyRecurrenceKey(garoonEvent), /^garoon-[A-Za-z0-9_-]+$/);
   assert.notEqual(getRecurrenceKey(garoonEvent), getLegacyRecurrenceKey(garoonEvent));
 });
 
-test('uses repeatId as recurring identity while retaining previous UID lookup keys', () => {
+test('uses the Garoon event ID as recurring identity while retaining previous UID lookup keys', () => {
   const garoonEvent = {
     id: 'occurrence-790',
     repeatId: 'series-790',
@@ -422,9 +445,31 @@ test('uses repeatId as recurring identity while retaining previous UID lookup ke
     subject: '件名変更後',
     notes: 'メモ変更後',
   }));
-  assert.equal(getRecurrenceKey(garoonEvent), 'garoonseries-790');
+  assert.equal(getRecurrenceKey(garoonEvent), 'garoonoccurrence-790');
   assert.notEqual(getHistoricalRecurrenceKey(garoonEvent), getRecurrenceKey(garoonEvent));
   assert.match(getHistoricalRecurrenceKey(garoonEvent), /^garoon-[a-f0-9]{64}$/);
+});
+
+test('keeps one recurring UID when repeatId changes per occurrence', () => {
+  const firstOccurrence = {
+    id: 'series-791',
+    repeatId: '202609170600',
+    repeatInfo: { type: 'ONCE_EVERY_TWO_WEEKS', dayOfWeek: 'THU' },
+  };
+  const secondOccurrence = {
+    ...firstOccurrence,
+    repeatId: '202610010600',
+  };
+
+  assert.equal(getRecurrenceKey(firstOccurrence), 'garoonseries-791');
+  assert.equal(getRecurrenceKey(firstOccurrence), getRecurrenceKey(secondOccurrence));
+});
+
+test('rejects events without a Garoon event ID', () => {
+  assert.throws(
+    () => getRecurrenceKey({ subject: 'IDなし予定' }),
+    /Garoon event has invalid id: IDなし予定/
+  );
 });
 
 test('detects whether a synchronized event actually changed', () => {

@@ -168,6 +168,7 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
   const candidateUIDs = [
     googleEvent.iCalUID,
     garoonEvent.id,
+    garoonEvent.repeatId && `garoon${garoonEvent.repeatId}`,
     getLegacyRecurrenceKey(garoonEvent),
     getHistoricalRecurrenceKey(garoonEvent),
   ].filter(Boolean);
@@ -203,6 +204,7 @@ function getGaroonEventKeys(garoonEvents) {
   return new Set(garoonEvents.flatMap(event => [
     event.id,
     getRecurrenceKey(event),
+    event.repeatId && `garoon${event.repeatId}`,
     getLegacyRecurrenceKey(event),
     getHistoricalRecurrenceKey(event),
   ].filter(Boolean)));

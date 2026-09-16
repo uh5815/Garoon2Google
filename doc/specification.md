@@ -104,7 +104,7 @@ node main.js --delete-cancelled-google-events
 
 ### 5.3 繰り返しの前提
 
-`repeatInfo` と `repeatId` の両方がある場合だけ、繰り返し規則を作成する。どちらかがない場合、`recurrence` はGoogleイベントへ設定しない。
+`repeatInfo` がある場合に繰り返し規則を作成する。`repeatId` は発生日ごとに変わるため、シリーズ判定やUID生成には使用しない。
 
 Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月内の曜日序数を表している。たとえば、件名「毎月第3火曜日」のイベントは次の値で返る。
 
@@ -122,6 +122,7 @@ Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月�
 | `EVERY_WEEK` | 曜日 | `FREQ=WEEKLY;BYDAY={曜日}` |
 | `ONCE_EVERY_TWO_WEEKS` | 曜日 | `FREQ=WEEKLY;INTERVAL=2;BYDAY={曜日}` |
 | `ONCE_EVERY_THREE_WEEKS` | 曜日 | `FREQ=WEEKLY;INTERVAL=3;BYDAY={曜日}` |
+| `EVERY_DAY` | 使用しない | `FREQ=DAILY` |
 | `EVERY_WEEKDAY` | 使用しない | `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR` |
 | `EVERY_1STWEEK` | 曜日 | `FREQ=MONTHLY;BYDAY=1{曜日}` |
 | `EVERY_2NDWEEK` | 曜日 | `FREQ=MONTHLY;BYDAY=2{曜日}` |
@@ -152,11 +153,11 @@ Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月�
 Google Calendarとの照合に使う安定したUIDを次の規則で作成する。
 
 - 単発予定: `garoon` + GaroonイベントID
-- 繰り返し予定で `repeatId` がある場合: `garoon` + `repeatId`
-- 繰り返し予定で `repeatId` がない場合: 繰り返し情報からSHA-256ハッシュを作成
+- 繰り返し予定を含むすべての予定: `garoon` + GaroonイベントID
+- GaroonイベントIDがない場合: UIDを生成せず、`Garoon event has invalid id` エラーにする
 - 値が空、長すぎる、またはiCalendar UIDとして許可しない文字を含む場合: SHA-256ハッシュへ置換
 
-過去形式との移行用に、Base64URL形式の旧UIDと、repeatId導入前のSHA-256形式UIDも生成できる。既存Googleイベントの検索時には現行UID、GaroonイベントID、旧UID、過去UIDを候補として使う。
+過去形式との移行用に、Base64URL形式の旧UIDと、repeatId導入前のSHA-256形式UIDを生成できる。旧実装で作成された `garoon + repeatId` UIDも既存Googleイベントの検索・削除判定候補に含める。
 
 ## 6. Google Calendarとの同期
 
@@ -166,7 +167,7 @@ Google Calendarとの照合に使う安定したUIDを次の規則で作成す�
 
 ### 6.2 シリーズの集約
 
-Garoonイベントを `getRecurrenceKey` の結果でグループ化し、同じキーの最初のイベントだけを同期する。これにより、Garoon APIが返す繰り返し予定の各発生分を重複登録しない。
+GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の結果でグループ化し、同じキーの最初のイベントだけを同期する。Garoon APIが発生日ごとに異なる `repeatId` を返しても、繰り返し予定を重複登録しない。
 
 ### 6.3 追加・更新
 
