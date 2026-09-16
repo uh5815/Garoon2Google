@@ -7,6 +7,7 @@ const {
 const {
   findGoogleEventsToDelete,
   hasEventChanges,
+  getSyncTargets,
 } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
@@ -101,6 +102,19 @@ test('finds Google events whose Garoon events were deleted', () => {
   ];
 
   assert.deepEqual(findGoogleEventsToDelete(garoonEvents, googleEvents), [googleEvents[1]]);
+});
+
+test('supports multi-user sync targets and legacy single-target config', () => {
+  const targets = [
+    { garoonUser: { name: 'A', id: 'a' }, googleCalendarId: 'calendar-a' },
+    { garoonUser: { name: 'B', id: 'b' }, googleCalendarId: 'calendar-b' },
+  ];
+
+  assert.deepEqual(getSyncTargets({ sync: { targets } }), targets);
+  assert.deepEqual(getSyncTargets({
+    garoon: { user: { name: 'A', id: 'a' } },
+    google: { calendarId: 'calendar-a' },
+  }), [targets[0]]);
 });
 
 test('uses dateTime fields when they are complete for a non-recurring event', () => {

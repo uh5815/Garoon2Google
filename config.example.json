@@ -1,17 +1,27 @@
 {
   "garoon": {
     "apiUrl": "https://example.com/api/v1/schedule/events",
-    "auth": "YOUR_GAROON_AUTH",
-    "user": {
-      "name": "YOUR_USER_NAME",
-      "id": "YOUR_USER_ID"
-    }
+    "auth": "YOUR_GAROON_AUTH"
   },
   "google": {
-    "credentialsPath": "./lib/credentials.json",
-    "calendarId": "YOUR_GOOGLE_CALENDAR_ID"
+    "credentialsPath": "./lib/credentials.json"
   },
   "sync": {
-    "mode": "apply-and-delete"
+    "targets": [
+      {
+        "garoonUser": {
+          "name": "USER_A_NAME",
+          "id": "USER_A_ID"
+        },
+        "googleCalendarId": "GOOGLE_CALENDAR_A_ID"
+      },
+      {
+        "garoonUser": {
+          "name": "USER_B_NAME",
+          "id": "USER_B_ID"
+        },
+        "googleCalendarId": "GOOGLE_CALENDAR_B_ID"
+      }
+    ]
   }
 }

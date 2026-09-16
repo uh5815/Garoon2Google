@@ -13,11 +13,13 @@
 | `limit` | `200` |
 | `rangeStart` | 実行時刻のISO 8601文字列 |
 | `rangeEnd` | 実行時刻の約3か月後のISO 8601文字列 |
-| `target` | `config.garoon.user.id` |
+| `target` | `sync.targets[].garoonUser.id` |
 | `targetType` | `user` |
 | `orderBy` | `start asc` |
 
-レスポンスの `events` 配列を同期処理へ渡す。APIエラー時はエラーをログへ記録し、メイン処理を失敗させる。
+`sync.targets` の各ユーザーについてリクエストを実行し、レスポンスの `events` 配列を対応するGoogle Calendarの同期処理へ渡す。APIエラー時は対象ユーザーの処理を失敗として記録し、他のtargetの処理は継続する。
+
+Garoonの `apiUrl` と `auth`、GoogleのOAuth認証情報は全targetで共通である。ユーザーと同期先カレンダーの対応は `sync.targets[].garoonUser` と `sync.targets[].googleCalendarId` で定義する。
 
 ## 2. GaroonからGoogleイベントへの変換
 

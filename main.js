@@ -231,6 +231,24 @@ function isManagedEvent(event) {
 }
 
 /**
+ * 新旧設定から同期対象一覧を取得する。
+ * @param {object} config アプリケーション設定
+ * @returns {object[]} ユーザーとGoogleカレンダーの同期対象
+ */
+function getSyncTargets(config) {
+  if (Array.isArray(config.sync?.targets)) return config.sync.targets;
+
+  if (config.garoon?.user && config.google?.calendarId) {
+    return [{
+      garoonUser: config.garoon.user,
+      googleCalendarId: config.google.calendarId,
+    }];
+  }
+
+  throw new Error('No sync targets configured');
+}
+
+/**
  * Garoonで削除されたGoogleイベントを削除する。
  * @param {object[]} garoonEvents 現在のGaroonイベント一覧
  * @param {object[]} googleEvents 現在のGoogleイベント一覧
@@ -272,34 +290,46 @@ async function main() {
     const config = await loadConfig();
     logger.info('Config loaded successfully');
 
-    const garoonEvents = await getGaroonEvents(config);
-    logger.info('Garoon events fetched successfully');
-
     const credentials = await loadGoogleCredentials(config.google.credentialsPath);
     logger.info('Credentials loaded successfully');
 
     const googleAuth = await authorize(credentials);
     logger.info('Google authorization successful');
 
-    const googleEvents = await getGoogleCalendarEvents(googleAuth, config.google.calendarId);
-    logger.info('Google Calendar events fetched successfully');
+    let synchronizationFailures = 0;
+    let deletionFailures = 0;
+    for (const target of getSyncTargets(config)) {
+      const targetLabel = target.garoonUser.name || target.garoonUser.id;
+      try {
+        const garoonEvents = await getGaroonEvents(config, target.garoonUser);
+        logger.info('Garoon events fetched successfully', { target: targetLabel });
 
-    const synchronizationResult = await synchronizeEvents(
-      garoonEvents,
-      googleEvents,
-      googleAuth,
-      config.google.calendarId,
-    );
-    const deletionResult = await deleteRemovedEvents(
-      garoonEvents,
-      googleEvents,
-      googleAuth,
-      config.google.calendarId,
-    );
-    if (synchronizationResult.failedCount || deletionResult.failedCount) {
+        const googleEvents = await getGoogleCalendarEvents(googleAuth, target.googleCalendarId);
+        logger.info('Google Calendar events fetched successfully', { target: targetLabel });
+
+        const synchronizationResult = await synchronizeEvents(
+          garoonEvents,
+          googleEvents,
+          googleAuth,
+          target.googleCalendarId,
+        );
+        const deletionResult = await deleteRemovedEvents(
+          garoonEvents,
+          googleEvents,
+          googleAuth,
+          target.googleCalendarId,
+        );
+        synchronizationFailures += synchronizationResult.failedCount;
+        deletionFailures += deletionResult.failedCount;
+      } catch (targetError) {
+        synchronizationFailures += 1;
+        logger.error(`Synchronization failed for ${targetLabel}: ${targetError.message}`);
+      }
+    }
+    if (synchronizationFailures || deletionFailures) {
       logger.error('Synchronization completed with errors', {
-        synchronizationFailures: synchronizationResult.failedCount,
-        deletionFailures: deletionResult.failedCount,
+        synchronizationFailures,
+        deletionFailures,
       });
       process.exitCode = 1;
     }
@@ -319,6 +349,7 @@ module.exports = {
   synchronizeEvent,
   findGoogleEventsToDelete,
   deleteRemovedEvents,
+  getSyncTargets,
   hasEventChanges,
   normalizeComparableValue,
   main,

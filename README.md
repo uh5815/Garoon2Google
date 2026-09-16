@@ -106,16 +106,37 @@ Copy-Item config.example.json config.json
 | 項目 | 設定する内容 |
 | --- | --- |
 | `garoon.apiUrl` | Garoonの予定API URL |
-| `garoon.auth` | Garoon APIで使用する認証値 |
-| `garoon.user.name` | Garoonの対象ユーザー名 |
-| `garoon.user.id` | Garoonの対象ユーザーID |
+| `garoon.auth` | `ログイン名:パスワード` をUTF-8でBase64エンコードした値 |
 | `google.credentialsPath` | Google認証情報JSONへのパス。通常は変更不要 |
-| `google.calendarId` | 同期先Google CalendarのカレンダーID |
-| `sync.mode` | 同期動作モード |
+| `sync.targets[].garoonUser.name` | Garoonの対象ユーザー名 |
+| `sync.targets[].garoonUser.id` | Garoonの対象ユーザーID |
+| `sync.targets[].googleCalendarId` | そのユーザーの同期先Google CalendarのID |
 
-`google.calendarId` はGoogle Calendarの「設定と共有」で対象カレンダーを開き、「カレンダーの統合」にある「カレンダーID」から確認できます。
+`sync.targets` にGaroonユーザーとGoogle Calendarの組を登録します。Aさんの予定をカレンダーA、Bさんの予定をカレンダーBへ同期する場合は、targetを2件設定します。各カレンダーIDはGoogle Calendarの「設定と共有」にある「カレンダーの統合」から確認できます。
 
-`garoon.auth` はGaroon環境の管理者または担当者から指定された値を使用してください。認証値の作り方や必要な権限は環境によって異なるため、推測して変更しないでください。
+### Garoon認証値の作成
+
+Garoon REST APIのパスワード認証では、`ログイン名:パスワード` をUTF-8でBase64エンコードした値を `X-Cybozu-Authorization` ヘッダーへ設定します。`config.json` の `garoon.auth` には、そのBase64文字列を設定してください。これは暗号化ではありません。
+
+公式仕様: [Garoon REST API 認証](https://cybozu.dev/ja/garoon/docs/rest-api/overview/authentication/)
+
+PowerShellでは、パスワードを画面表示・コマンド履歴に残さないため、次のように作成できます。
+
+```powershell
+$loginName = Read-Host "Garoon login name"
+$securePassword = Read-Host "Garoon password" -AsSecureString
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+try {
+	$password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+	$auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("$loginName`:$password"))
+	$auth
+}
+finally {
+	[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+}
+```
+
+表示された値を `config.json` の `garoon.auth` に設定します。認証値、パスワード、設定ファイルはGitHubやチャットへ貼り付けないでください。Garoon環境によって必要なログイン名・パスワード・API権限が異なる場合は、管理者へ確認してください。
 
 ## 5. 初回実行とGoogle認証
 
