@@ -172,7 +172,7 @@ node main.js --delete-cancelled-google-events
 - `Failed to add/update event in Google Calendar:`: 個別予定の処理に失敗。ほかの予定の処理は継続する場合があります
 - `Synchronization completed with errors`: 一部の同期または削除に失敗。ログを確認してください
 
-ログはコンソールに表示され、プロジェクト内の `logs` フォルダーに `combined-YYYY-MM-DD.log` という日付別のJSONファイルとして保存されます。7日より古いログは、`main.js` 実行時に削除されます。
+ログはコンソールに表示され、プロジェクト内の `logs` フォルダーに実行ごとの `run-YYYY-MM-DDTHH-mm-ss-SSS-<プロセスID>.log` というJSONファイルとして保存されます。7日より古い実行ログは、`main.js` 実行時に削除されます。
 
 ## トラブルシューティング
 
@@ -224,7 +224,7 @@ npm test
 | `lib/googleCalendar.js` | Google OAuthとGoogle Calendar API操作 |
 | `lib/eventConverter.js` | GaroonイベントからGoogleイベントへの変換、RRULE、UID生成 |
 | `lib/config.js` | `config.json` の読み込み |
-| `logger.js` | コンソール出力、日付別ログ、古いログの削除 |
+| `logger.js` | コンソール出力、実行単位ログ、古いログの削除 |
 | `test/eventConverter.test.js` | イベント変換、UID、削除判定、差分判定の回帰テスト |
 
 主要な関数にはJSDoc形式の日本語コメントがあります。引数、戻り値、例外、旧UID移行などの設計意図を確認するときは、対象関数の直前にあるコメントを参照してください。

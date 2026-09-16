@@ -4,60 +4,7 @@
 - 基準実装: `main.js`、`lib/garoon.js`、`lib/eventConverter.js`、`lib/googleCalendar.js`
 - 更新日: 2026-09-16
 
-## 1. 目的と前提
-
-Garoonを正とし、対象ユーザーの予定をGoogle Calendarへ追加・更新する。Garoonに存在しない、アプリケーションが管理するGoogle Calendar予定は削除する。
-
-Google Calendar側で作成した予定は、説明文の先頭が `▼参加者<br>` ではないため、同期・削除の対象にしない。
-
-同期はGaroonのイベントをシリーズ単位に集約して実行する。繰り返し予定は、Garoonから取得された複数の発生予定のうち、シリーズごとの最初のイベントを代表としてGoogle Calendarの1件の繰り返し予定へ変換する。
-
-## 2. 実行環境と起動
-
-### 2.1 通常起動
-
-```powershell
-node main.js
-```
-
-Windowsでは `execute.vbs` をダブルクリックしても起動できる。VBSは自身の格納フォルダーをカレントディレクトリに設定し、ウィンドウを表示せずに `node main.js` を実行する。
-
-### 2.2 キャンセル済み予定の削除
-
-```powershell
-node main.js --delete-cancelled-google-events
-```
-
-このモードはGaroon取得や通常同期を行わず、Google Calendarから `status: cancelled` の予定を全ページ取得して削除する。
-
-### 2.3 起動処理の順序
-
-1. 7日より古い日付別ログを削除する。
-2. `config.json` を読み込む。
-3. Garoonから対象期間のイベントを取得する。
-4. Google OAuth認証情報を読み込む。
-5. 保存済みトークンでGoogle APIを認証する。トークンの有効期限が近い場合は更新して保存する。
-6. 通常モードではGoogle Calendarの予定を取得する。
-7. Garoonイベントをシリーズ単位に集約し、追加または更新する。
-8. Garoonに存在しない管理対象Google予定を削除する。
-9. 同期または削除に失敗した件数があれば、プロセス終了コードを1にする。
-
-## 3. 設定
-
-`config.json` の主要項目は次のとおり。
-
-| 項目 | 用途 |
-| --- | --- |
-| `garoon.apiUrl` | Garoon予定APIのURL |
-| `garoon.auth` | `X-Cybozu-Authorization` ヘッダーへ設定する認証値 |
-| `garoon.user.id` | Garoon APIの取得対象ユーザーID |
-| `google.credentialsPath` | Google OAuthクライアントJSONのパス |
-| `google.calendarId` | 同期先Google CalendarのID |
-| `sync.mode` | 設定値として保持される同期モード |
-
-認証情報を含む `config.json`、`lib/credentials.json`、`token.json` はGitへ登録しない。
-
-## 4. Garoonイベントの取得
+## 1. Garoonイベントの取得
 
 `lib/garoon.js` はGaroon APIへ次の条件でGETリクエストを送る。
 
@@ -72,11 +19,11 @@ node main.js --delete-cancelled-google-events
 
 レスポンスの `events` 配列を同期処理へ渡す。APIエラー時はエラーをログへ記録し、メイン処理を失敗させる。
 
-## 5. GaroonからGoogleイベントへの変換
+## 2. GaroonからGoogleイベントへの変換
 
 変換は `convertGaroonToGoogleEvent` が担当する。Google APIへ渡す主な項目は `summary`、`iCalUID`、`start`、`end`、`description`、`recurrence` である。
 
-### 5.1 件名と説明
+### 2.1 件名と説明
 
 - `summary` はGaroonの `subject` をそのまま設定する。
 - 参加者は `attendees` の各 `name` から全角スペースを除去し、`, ` で連結する。
@@ -88,7 +35,7 @@ node main.js --delete-cancelled-google-events
 
 参加者がない場合は参加者一覧を空文字列とする。メモがない場合も空文字列とする。
 
-### 5.2 日時
+### 2.2 日時
 
 終日予定は次のいずれかで判定する。
 
@@ -102,7 +49,7 @@ node main.js --delete-cancelled-google-events
 
 終日予定に有効な日付がない場合、または時刻指定予定に開始・終了日時が揃っていない場合は変換エラーとする。
 
-### 5.3 繰り返しの前提
+### 2.3 繰り返しの前提
 
 `repeatInfo` がある場合に繰り返し規則を作成する。`repeatId` は発生日ごとに変わるため、シリーズ判定やUID生成には使用しない。
 
@@ -115,7 +62,7 @@ Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月�
 }
 ```
 
-### 5.4 対応する繰り返しタイプ
+### 2.4 対応する繰り返しタイプ
 
 | Garoon `repeatInfo.type` | `dayOfWeek` | Google RRULE |
 | --- | --- | --- |
@@ -135,7 +82,7 @@ Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月�
 
 `repeatInfo.period.end` がある場合は `UNTIL` を付ける。終日予定は `YYYYMMDD`、時刻指定予定は `YYYYMMDDT235959Z` とする。
 
-### 5.5 除外日
+### 2.5 除外日
 
 `repeatInfo.exclusiveDateTimes` の各 `start` をGoogle Calendarの除外規則へ変換する。
 
@@ -144,11 +91,11 @@ Garoon APIから実際に取得したイベントでは、`EVERY_*WEEK` が月�
 
 時刻指定予定のタイムゾーンはイベントの `start.timeZone` を優先し、ない場合は `repeatInfo.timeZone` を使う。除外日時はローカル日時として区切り文字を除去する。
 
-### 5.6 未対応タイプ
+### 2.6 未対応タイプ
 
 対応表にない `repeatInfo.type` は、推測で変換せず `Unsupported recurrence type` エラーとする。これにより、誤った繰り返し予定をGoogle Calendarへ登録しない。
 
-### 5.7 iCalUID
+### 2.7 iCalUID
 
 Google Calendarとの照合に使う安定したUIDを次の規則で作成する。
 
@@ -159,17 +106,17 @@ Google Calendarとの照合に使う安定したUIDを次の規則で作成す�
 
 過去形式との移行用に、Base64URL形式の旧UIDと、repeatId導入前のSHA-256形式UIDを生成できる。旧実装で作成された `garoon + repeatId` UIDも既存Googleイベントの検索・削除判定候補に含める。
 
-## 6. Google Calendarとの同期
+## 3. Google Calendarとの同期
 
-### 6.1 Google予定の取得
+### 3.1 Google予定の取得
 
 通常同期では `singleEvents: false` で繰り返しシリーズを展開せずに取得する。`timeMin` は実行時刻、`showDeleted` は `true`、最大取得件数は1ページあたり2500件とし、`nextPageToken` がある限りページングする。
 
-### 6.2 シリーズの集約
+### 3.2 シリーズの集約
 
 GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の結果でグループ化し、同じキーの最初のイベントだけを同期する。Garoon APIが発生日ごとに異なる `repeatId` を返しても、繰り返し予定を重複登録しない。
 
-### 6.3 追加・更新
+### 3.3 追加・更新
 
 1. GaroonイベントをGoogleイベントへ変換する。
 2. 現行UID、GaroonイベントID、旧UID、過去UIDの順でGoogleイベントを探す。
@@ -180,7 +127,7 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 
 更新時はGoogle側の `iCalUID` と `sequence` を維持する。Google側の最新イベントに既存UIDがあればそれを優先する。
 
-### 6.4 Garoonで削除された予定の削除
+### 3.4 Garoonで削除された予定の削除
 
 削除対象は次の条件をすべて満たすGoogleイベントである。
 
@@ -191,17 +138,17 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 
 照合キー集合にはGaroonイベントID、現行UID、旧UID、過去UIDを含める。削除APIが404または410を返した場合は、すでに削除済みとして扱う。それ以外の失敗は件数を記録し、終了コードを1にする。
 
-### 6.5 キャンセル済みGoogleイベントの削除
+### 3.5 キャンセル済みGoogleイベントの削除
 
 `--delete-cancelled-google-events` 指定時は、キャンセル済みイベントを全ページ取得する。各イベントの削除は、404または410を成功扱いとし、レート制限エラーは最大5回まで指数バックオフして再試行する。
 
-## 7. エラーとログ
+## 4. エラーとログ
 
 致命的エラーはメッセージをログへ出力し、プロセス終了コードを1にする。個別イベントの変換・追加・更新に失敗した場合は、そのイベント以外の処理を継続し、失敗件数を最後に判定する。
 
-ログはコンソールと `logs/combined-YYYY-MM-DD.log` へJSON形式で出力する。保持期間は7日である。通常ログにはイベントID、iCalUID、件名などを記録するが、説明文・参加者・認証情報は成功ログへ記録しない。
+ログはコンソールへ `timestamp level message` の読みやすい形式で表示し、実行ごとに生成する `logs/run-YYYY-MM-DDTHH-mm-ss-SSS-<プロセスID>.log` へJSON形式で保存する。保持期間は7日であり、起動時に7日より古い実行ログを削除する。通常ログにはイベントID、iCalUID、件名などを記録するが、説明文・参加者・認証情報は成功ログへ記録しない。
 
-## 8. ファイル構成と責務
+## 5. ファイル構成と責務
 
 | ファイル | 責務 |
 | --- | --- |
@@ -210,12 +157,12 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 | `lib/garoon.js` | Garoon APIからの予定取得 |
 | `lib/eventConverter.js` | 日時、説明、UID、RRULE、EXDATEの変換 |
 | `lib/googleCalendar.js` | Google OAuth、イベント取得・追加・更新・削除 |
-| `logger.js` | コンソール・日別ファイルログ、古いログの削除 |
+| `logger.js` | コンソール・実行単位ファイルログ、古いログの削除 |
 | `execute.vbs` | Windowsから非表示で通常同期を起動 |
 | `test/eventConverter.test.js` | 変換、UID、削除判定、差分判定の回帰テスト |
 | `scripts/save-and-push.js` | mainブランチのテスト、コミット、プッシュ |
 
-## 9. 制約と運用上の注意
+## 6. 実装上の制約
 
 - Garoonの取得期間は実行時点から約3か月後までである。
 - Garoon APIの取得上限はリクエストごとに200件である。
@@ -225,7 +172,7 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 - `execute.vbs` はGoogle認証の入力画面を表示する用途ではなく、認証済みトークンを使った定期実行を想定する。
 - 実際のGoogle Calendarを変更するため、初回や仕様変更後はテスト用カレンダーで確認する。
 
-## 10. 変更時の確認方法
+## 7. 変更時の確認方法
 
 イベント変換ロジックを変更した場合は、プロジェクトルートで次を実行する。
 

@@ -1,30 +1,43 @@
 const winston = require('winston');
-const DailyRotateFile = require('winston-daily-rotate-file');
+const fsSync = require('fs');
 const fs = require('fs').promises;
 const path = require('path');
 
 const logDirectory = path.join(process.cwd(), 'logs');
-const logFilePattern = /^combined-(\d{4}-\d{2}-\d{2})\.log$/;
+const logFilePattern = /^run-(\d{4}-\d{2}-\d{2})T.*\.log$/;
+const logFileName = `run-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}.log`;
 
-// コンソール出力と日付別ファイル出力を同じLoggerへ集約する。
+fsSync.mkdirSync(logDirectory, { recursive: true });
+
+const jsonFormat = winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json(),
+);
+const consoleFormat = winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message, ...metadata }) => {
+        const details = Object.keys(metadata).length > 0
+            ? ` ${JSON.stringify(metadata)}`
+            : '';
+        return `${timestamp} ${level.toUpperCase().padEnd(5)} ${message}${details}`;
+    }),
+);
+
+// コンソールは読みやすく、ファイルは検索しやすいJSON形式で出力する。
 const logger = winston.createLogger({
     level: 'info',
-    format: winston.format.json(),
     transports: [
-        new winston.transports.Console(),
-        new DailyRotateFile({
+        new winston.transports.Console({ format: consoleFormat }),
+        new winston.transports.File({
             dirname: logDirectory,
-            filename: 'combined-%DATE%.log',
-            datePattern: 'YYYY-MM-DD',
-            maxFiles: '7d',
-            zippedArchive: false,
+            filename: logFileName,
+            format: jsonFormat,
         })
     ]
 });
 
 /**
- * 7日より古い日付別ログを削除する。
- * ローテーション機能とは別に、アプリ起動時にも保持期間を確認する。
+ * 7日より古い実行単位ログを削除する。
  * @returns {Promise<void>}
  */
 async function cleanupOldLogs() {
