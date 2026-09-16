@@ -211,6 +211,38 @@ test('converts a third-week all-day series to a monthly Google RRULE', () => {
   ]);
 });
 
+test('converts monthly weekday ordinal series to Google RRULEs', () => {
+  const recurrenceCases = [
+    ['EVERY_1STWEEK', 'SUN', '1SU'],
+    ['EVERY_2NDWEEK', 'MON', '2MO'],
+    ['EVERY_4THWEEK', 'WED', '4WE'],
+    ['EVERY_LASTWEEK', 'THU', '-1TH'],
+  ];
+
+  for (const [type, dayOfWeek, expectedDay] of recurrenceCases) {
+    const googleEvent = convertGaroonToGoogleEvent({
+      id: `${type}-occurrence`,
+      repeatId: `${type}-series`,
+      subject: type,
+      start: { dateTime: '2026-09-15T15:00:00+09:00', timeZone: 'Asia/Tokyo' },
+      end: { dateTime: '2026-09-15T16:00:00+09:00', timeZone: 'Asia/Tokyo' },
+      repeatInfo: {
+        type,
+        period: { end: '2027-08-01' },
+        dayOfWeek,
+        timeZone: 'Asia/Tokyo',
+      },
+      attendees: [],
+      notes: '',
+    });
+
+    assert.equal(
+      googleEvent.recurrence[0],
+      `RRULE:FREQ=MONTHLY;BYDAY=${expectedDay};UNTIL=20270801T235959Z`,
+    );
+  }
+});
+
 test('converts a monthly day-of-month series to a Google RRULE', () => {
   const googleEvent = convertGaroonToGoogleEvent({
     id: 'monthly-occurrence',
