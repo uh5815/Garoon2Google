@@ -21,6 +21,7 @@ const { isDeepStrictEqual } = require('node:util');
 
 const SYNCHRONIZED_EVENT_FIELDS = ['summary', 'description', 'start', 'end', 'recurrence'];
 const DELETE_CANCELLED_GOOGLE_EVENTS_FLAG = '--delete-cancelled-google-events';
+const DELETE_GOOGLE_EVENT_ID_FLAG = '--delete-google-event-id';
 const DELETE_RETRY_LIMIT = 5;
 
 /**
@@ -121,9 +122,24 @@ function hasEventChanges(existingEvent, googleEvent) {
  */
 function normalizeComparableValue(value, field) {
   if (value === undefined && field === 'recurrence') return [];
+  if (field === 'recurrence' && Array.isArray(value)) return normalizeRecurrence(value);
   if (!value || typeof value !== 'object') return value;
   if (field === 'start' || field === 'end') return normalizeDateTime(value);
   return value;
+}
+
+/**
+ * Google Calendarが並べ替えるRRULEのパラメーター順序を比較用に正規化する。
+ * @param {string[]} recurrence Google Calendarの繰り返し規則
+ * @returns {string[]} 順序差を無視できる繰り返し規則
+ */
+function normalizeRecurrence(recurrence) {
+  return recurrence.map(rule => {
+    if (!rule.startsWith('RRULE:')) return rule;
+
+    const [prefix, ...parts] = rule.split(';');
+    return [prefix, ...parts.sort()].join(';');
+  });
 }
 
 /**
@@ -172,7 +188,11 @@ async function findExistingGoogleEvent(garoonEvent, googleEvent, googleEvents, g
     getLegacyRecurrenceKey(garoonEvent),
     getHistoricalRecurrenceKey(garoonEvent),
   ].filter(Boolean);
-  const eventInFetchedList = googleEvents.find(event => candidateUIDs.includes(event.iCalUID));
+  const eventInFetchedList = googleEvents.find(event => (
+    candidateUIDs.includes(event.iCalUID)
+      && !event.deleted
+      && event.status !== 'cancelled'
+  ));
   if (eventInFetchedList) return eventInFetchedList;
 
   // 移行期間中は、旧形式の長いBase64URL UIDでも検索できるようにする。
@@ -326,6 +346,24 @@ function isDeleteCancelledGoogleEventsRequested(args = process.argv.slice(2)) {
 }
 
 /**
+ * 特定Googleイベント削除オプションを解析する。
+ * @param {string[]} [args] コマンドライン引数
+ * @returns {{eventId?: string, iCalUID?: string}|undefined} 削除対象
+ * @throws {Error} オプションまたは値が不正な場合
+ */
+function getDeleteGoogleEventRequest(args = process.argv.slice(2)) {
+  const eventIdIndex = args.indexOf(DELETE_GOOGLE_EVENT_ID_FLAG);
+  if (eventIdIndex === -1) return undefined;
+
+  const value = args[eventIdIndex + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error('Google event deletion option requires a value');
+  }
+
+  return { eventId: value };
+}
+
+/**
  * 設定読込、Garoon取得、Google認証、同期、削除を順番に実行する。
  * 致命的エラーまたは一部失敗がある場合は終了コードを1にする。
  * @returns {Promise<void>}
@@ -349,6 +387,24 @@ async function main() {
       const result = await deleteCancelledGoogleEvents(googleAuth, config.google.calendarId);
       logger.info('Cancelled Google Calendar events cleanup completed', result);
       if (result.failedCount) process.exitCode = 1;
+      return;
+    }
+
+    const deleteGoogleEventRequest = getDeleteGoogleEventRequest();
+    if (deleteGoogleEventRequest) {
+      try {
+        await deleteEventFromGoogleCalendar(
+          googleAuth,
+          deleteGoogleEventRequest.eventId,
+          config.google.calendarId,
+        );
+      } catch (error) {
+        if (error.code !== 404 && error.code !== 410) throw error;
+        logger.info('Google Calendar event was already deleted', {
+          eventId: deleteGoogleEventRequest.eventId,
+        });
+      }
+      logger.info('Specific Google Calendar event deletion completed', deleteGoogleEventRequest);
       return;
     }
 
@@ -391,6 +447,7 @@ module.exports = {
   findGoogleEventsToDelete,
   deleteRemovedEvents,
   deleteCancelledGoogleEvents,
+  getDeleteGoogleEventRequest,
   isDeleteCancelledGoogleEventsRequested,
   hasEventChanges,
   normalizeComparableValue,

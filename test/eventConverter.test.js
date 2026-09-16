@@ -9,6 +9,7 @@ const {
 const {
   findGoogleEventsToDelete,
   hasEventChanges,
+  getDeleteGoogleEventRequest,
   isDeleteCancelledGoogleEventsRequested,
 } = require('../main');
 
@@ -505,9 +506,32 @@ test('detects whether a synchronized event actually changed', () => {
       end: { dateTime: '2026-09-08T02:00:00.000Z', timeZone: 'Asia/Tokyo' },
     },
   ), false);
+
+  assert.equal(hasEventChanges(
+    {
+      ...synchronizedEvent,
+      recurrence: ['RRULE:FREQ=MONTHLY;UNTIL=20261016;BYMONTHDAY=10'],
+    },
+    {
+      ...synchronizedEvent,
+      recurrence: ['RRULE:FREQ=MONTHLY;BYMONTHDAY=10;UNTIL=20261016'],
+    },
+  ), false);
 });
 
 test('recognizes the explicit cancelled-event cleanup flag', () => {
   assert.equal(isDeleteCancelledGoogleEventsRequested(['--delete-cancelled-google-events']), true);
   assert.equal(isDeleteCancelledGoogleEventsRequested([]), false);
+});
+
+test('parses specific Google event deletion options', () => {
+  assert.deepEqual(
+    getDeleteGoogleEventRequest(['--delete-google-event-id', 'google-event-id']),
+    { eventId: 'google-event-id' },
+  );
+  assert.equal(getDeleteGoogleEventRequest([]), undefined);
+  assert.throws(
+    () => getDeleteGoogleEventRequest(['--delete-google-event-id']),
+    /requires a value/,
+  );
 });

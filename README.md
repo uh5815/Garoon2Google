@@ -161,6 +161,16 @@ node main.js --delete-cancelled-google-events
 
 この操作は元に戻せません。対象カレンダーとGoogleアカウントを確認してから実行してください。
 
+コードから特定のGoogle Calendarイベントを削除する場合は、Googleの `eventId` を指定します。
+
+CLIから特定イベントを削除する場合:
+
+```powershell
+node main.js --delete-google-event-id <GoogleイベントID>
+```
+
+このモードは対象イベントだけを削除し、通常同期は実行しません。対象がすでに削除済みの場合は、エラーにせず削除完了として扱います。
+
 ## 実行結果の見方
 
 - `Event added in Google Calendar`: Google Calendarへ新規追加

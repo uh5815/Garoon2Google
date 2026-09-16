@@ -121,7 +121,7 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 1. GaroonイベントをGoogleイベントへ変換する。
 2. 現行UID、GaroonイベントID、旧UID、過去UIDの順でGoogleイベントを探す。
 3. 見つからなければ `events.insert` で追加する。
-4. 見つかった場合、`summary`、`description`、`start`、`end`、`recurrence` を比較する。
+4. 見つかった場合、`summary`、`description`、`start`、`end`、`recurrence` を比較する。RRULEのパラメーター順序はGoogle Calendar側で並べ替えられるため、順序を正規化して比較する。
 5. 差分がなければ更新しない。
 6. 差分があればGoogle側の最新イベントを取得して `events.update` する。
 
@@ -141,6 +141,12 @@ GaroonイベントをGaroonイベントIDを基にした `getRecurrenceKey` の�
 ### 3.5 キャンセル済みGoogleイベントの削除
 
 `--delete-cancelled-google-events` 指定時は、キャンセル済みイベントを全ページ取得する。各イベントの削除は、404または410を成功扱いとし、レート制限エラーは最大5回まで指数バックオフして再試行する。
+
+### 3.6 特定イベントの削除
+
+`deleteEventFromGoogleCalendar` は、Googleの `eventId` を指定してイベントを削除する。
+
+CLIでは `--delete-google-event-id <eventId>` を指定する。このモードでは対象イベントだけを削除し、通常同期は実行しない。対象が404または410（すでに削除済み）の場合は、削除成功として扱う。
 
 ## 4. エラーとログ
 
