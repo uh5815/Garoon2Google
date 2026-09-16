@@ -9,8 +9,6 @@ const {
 const {
   findGoogleEventsToDelete,
   hasEventChanges,
-  getDeleteGoogleEventRequest,
-  isDeleteCancelledGoogleEventsRequested,
 } = require('../main');
 
 test('converts a timed Garoon event without changing its fields', () => {
@@ -32,7 +30,6 @@ test('converts a timed Garoon event without changing its fields', () => {
     description: '▼参加者<br>山田太郎, 佐藤花子<br><br>議題を確認',
   });
 });
-
 test('uses date fields for an all-day Garoon event', () => {
   const garoonEvent = {
     id: 'all-day-123',
@@ -517,21 +514,21 @@ test('detects whether a synchronized event actually changed', () => {
       recurrence: ['RRULE:FREQ=MONTHLY;BYMONTHDAY=10;UNTIL=20261016'],
     },
   ), false);
-});
 
-test('recognizes the explicit cancelled-event cleanup flag', () => {
-  assert.equal(isDeleteCancelledGoogleEventsRequested(['--delete-cancelled-google-events']), true);
-  assert.equal(isDeleteCancelledGoogleEventsRequested([]), false);
-});
-
-test('parses specific Google event deletion options', () => {
-  assert.deepEqual(
-    getDeleteGoogleEventRequest(['--delete-google-event-id', 'google-event-id']),
-    { eventId: 'google-event-id' },
-  );
-  assert.equal(getDeleteGoogleEventRequest([]), undefined);
-  assert.throws(
-    () => getDeleteGoogleEventRequest(['--delete-google-event-id']),
-    /requires a value/,
-  );
+  assert.equal(hasEventChanges(
+    {
+      ...synchronizedEvent,
+      recurrence: [
+        'EXDATE;TZID=Asia/Tokyo:20260915T000000',
+        'RRULE:FREQ=MONTHLY;UNTIL=20270331T235959Z;BYDAY=3TU',
+      ],
+    },
+    {
+      ...synchronizedEvent,
+      recurrence: [
+        'RRULE:FREQ=MONTHLY;BYDAY=3TU;UNTIL=20270331T235959Z',
+        'EXDATE;TZID=Asia/Tokyo:20260915T000000',
+      ],
+    },
+  ), false);
 });

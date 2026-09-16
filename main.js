@@ -4,7 +4,6 @@ const {
   authorize,
   addEventToGoogleCalendar,
   getGoogleCalendarEvents,
-  getCancelledGoogleCalendarEvents,
   getGoogleCalendarEventByICalUID,
   updateEventInGoogleCalendar,
   deleteEventFromGoogleCalendar,
@@ -20,9 +19,6 @@ const fs = require('fs').promises;
 const { isDeepStrictEqual } = require('node:util');
 
 const SYNCHRONIZED_EVENT_FIELDS = ['summary', 'description', 'start', 'end', 'recurrence'];
-const DELETE_CANCELLED_GOOGLE_EVENTS_FLAG = '--delete-cancelled-google-events';
-const DELETE_GOOGLE_EVENT_ID_FLAG = '--delete-google-event-id';
-const DELETE_RETRY_LIMIT = 5;
 
 /**
  * Google OAuth認証情報JSONを読み込む。
@@ -139,7 +135,7 @@ function normalizeRecurrence(recurrence) {
 
     const [prefix, ...parts] = rule.split(';');
     return [prefix, ...parts.sort()].join(';');
-  });
+  }).sort();
 }
 
 /**
@@ -255,7 +251,7 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
 
   for (const googleEvent of eventsToDelete) {
     try {
-      await deleteEventFromGoogleCalendar(googleAuth, googleEvent.id, calendarId);
+      await deleteEventFromGoogleCalendar(googleAuth, googleEvent.id, calendarId, googleEvent.summary);
     } catch (deleteError) {
       if (deleteError.code === 404 || deleteError.code === 410) {
         logger.info(`Google Calendar event already deleted: ${googleEvent.id}`);
@@ -271,96 +267,6 @@ async function deleteRemovedEvents(garoonEvents, googleEvents, googleAuth, calen
   }
 
   return { failedCount };
-}
-
-/**
- * Google Calendarのキャンセル済みイベントを全件削除する。
- * @param {object} googleAuth Google APIの認証済みクライアント
- * @param {string} calendarId 削除対象カレンダーのID
- * @returns {Promise<{deletedCount: number, failedCount: number}>} 削除結果
- */
-async function deleteCancelledGoogleEvents(googleAuth, calendarId) {
-  const eventsToDelete = await getCancelledGoogleCalendarEvents(googleAuth, calendarId);
-  let failedCount = 0;
-
-  for (const googleEvent of eventsToDelete) {
-    let deleted = false;
-    for (let attempt = 0; attempt <= DELETE_RETRY_LIMIT; attempt += 1) {
-      try {
-        await deleteEventFromGoogleCalendar(googleAuth, googleEvent.id, calendarId);
-        deleted = true;
-        break;
-      } catch (error) {
-        if (error.code === 404 || error.code === 410) {
-          deleted = true;
-          break;
-        }
-        if (!isRateLimitError(error) || attempt === DELETE_RETRY_LIMIT) {
-          logger.error('Failed to delete cancelled Google Calendar event', {
-            error: error.message,
-            eventId: googleEvent.id,
-            iCalUID: googleEvent.iCalUID,
-          });
-          break;
-        }
-        await waitForRetry(attempt);
-      }
-    }
-    if (!deleted) failedCount += 1;
-  }
-
-  return {
-    deletedCount: eventsToDelete.length - failedCount,
-    failedCount,
-  };
-}
-
-/**
- * Google Calendar APIのレート制限エラーか判定する。
- * @param {Error & {code?: number, response?: {data?: object}}} error APIエラー
- * @returns {boolean} リトライ可能なレート制限エラーならtrue
- */
-function isRateLimitError(error) {
-  const reasons = error.response?.data?.error?.errors || [];
-  return error.code === 429
-    || reasons.some(detail => ['rateLimitExceeded', 'userRateLimitExceeded'].includes(detail.reason));
-}
-
-/**
- * リトライ前に指数バックオフで待機する。
- * @param {number} attempt 0から始まる試行番号
- * @returns {Promise<void>}
- */
-function waitForRetry(attempt) {
-  const delayMilliseconds = 1000 * (2 ** attempt);
-  return new Promise(resolve => setTimeout(resolve, delayMilliseconds));
-}
-
-/**
- * キャンセル済みイベント削除モードが指定されたか判定する。
- * @param {string[]} [args] コマンドライン引数
- * @returns {boolean} 指定されていればtrue
- */
-function isDeleteCancelledGoogleEventsRequested(args = process.argv.slice(2)) {
-  return args.includes(DELETE_CANCELLED_GOOGLE_EVENTS_FLAG);
-}
-
-/**
- * 特定Googleイベント削除オプションを解析する。
- * @param {string[]} [args] コマンドライン引数
- * @returns {{eventId?: string, iCalUID?: string}|undefined} 削除対象
- * @throws {Error} オプションまたは値が不正な場合
- */
-function getDeleteGoogleEventRequest(args = process.argv.slice(2)) {
-  const eventIdIndex = args.indexOf(DELETE_GOOGLE_EVENT_ID_FLAG);
-  if (eventIdIndex === -1) return undefined;
-
-  const value = args[eventIdIndex + 1];
-  if (!value || value.startsWith('--')) {
-    throw new Error('Google event deletion option requires a value');
-  }
-
-  return { eventId: value };
 }
 
 /**
@@ -382,31 +288,6 @@ async function main() {
 
     const googleAuth = await authorize(credentials);
     logger.info('Google authorization successful');
-
-    if (isDeleteCancelledGoogleEventsRequested()) {
-      const result = await deleteCancelledGoogleEvents(googleAuth, config.google.calendarId);
-      logger.info('Cancelled Google Calendar events cleanup completed', result);
-      if (result.failedCount) process.exitCode = 1;
-      return;
-    }
-
-    const deleteGoogleEventRequest = getDeleteGoogleEventRequest();
-    if (deleteGoogleEventRequest) {
-      try {
-        await deleteEventFromGoogleCalendar(
-          googleAuth,
-          deleteGoogleEventRequest.eventId,
-          config.google.calendarId,
-        );
-      } catch (error) {
-        if (error.code !== 404 && error.code !== 410) throw error;
-        logger.info('Google Calendar event was already deleted', {
-          eventId: deleteGoogleEventRequest.eventId,
-        });
-      }
-      logger.info('Specific Google Calendar event deletion completed', deleteGoogleEventRequest);
-      return;
-    }
 
     const googleEvents = await getGoogleCalendarEvents(googleAuth, config.google.calendarId);
     logger.info('Google Calendar events fetched successfully');
@@ -446,9 +327,6 @@ module.exports = {
   synchronizeEvent,
   findGoogleEventsToDelete,
   deleteRemovedEvents,
-  deleteCancelledGoogleEvents,
-  getDeleteGoogleEventRequest,
-  isDeleteCancelledGoogleEventsRequested,
   hasEventChanges,
   normalizeComparableValue,
   main,
