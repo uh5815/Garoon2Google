@@ -188,6 +188,52 @@ test('converts a weekly Garoon series to a Google RRULE', () => {
   ]);
 });
 
+test('converts a biweekly Thursday series to a Google RRULE', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'biweekly-thursday-occurrence',
+    repeatId: 'biweekly-thursday-series',
+    subject: '2週間ごと木曜日',
+    start: { dateTime: '2026-09-17T15:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-09-17T16:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    repeatInfo: {
+      type: 'ONCE_EVERY_TWO_WEEKS',
+      period: { end: '2027-08-01' },
+      dayOfWeek: 'THU',
+      timeZone: 'Asia/Tokyo',
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.recurrence, [
+    'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=TH;UNTIL=20270801T235959Z',
+  ]);
+});
+
+test('converts a three-week Monday series to a Google RRULE', () => {
+  const googleEvent = convertGaroonToGoogleEvent({
+    id: 'three-week-monday-occurrence',
+    repeatId: 'three-week-monday-series',
+    subject: '3週間ごと月曜日',
+    isAllDay: true,
+    start: { dateTime: '2026-10-12T00:00:00+09:00', timeZone: 'Asia/Tokyo' },
+    end: { dateTime: '2026-10-12T23:59:59+09:00', timeZone: 'Asia/Tokyo' },
+    repeatInfo: {
+      type: 'ONCE_EVERY_THREE_WEEKS',
+      period: { end: '2026-11-05' },
+      dayOfWeek: 'MON',
+      timeZone: 'Asia/Tokyo',
+      isAllDay: true,
+    },
+    attendees: [],
+    notes: '',
+  });
+
+  assert.deepEqual(googleEvent.recurrence, [
+    'RRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=MO;UNTIL=20261105',
+  ]);
+});
+
 test('converts a third-week all-day series to a monthly Google RRULE', () => {
   const googleEvent = convertGaroonToGoogleEvent({
     id: 'occurrence-456',
